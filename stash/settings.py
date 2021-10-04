@@ -259,8 +259,8 @@ TOM_ALERT_CLASSES = [
     'tom_alerts.brokers.tns.TNSBroker',
     'tom_alerts.brokers.fink.FinkBroker',
     'tommy.tommy.MyBroker',
-    'tommy.pittgoogle_database.PittGoogleBrokerDatabase',
-    'tommy.pittgoogle_stream.PittGoogleBrokerStream',
+    'tommy.pittgoogle_broker_database.PittGoogleBrokerDatabase',
+    'tommy.pittgoogle_broker_stream_rest.PittGoogleBrokerStream',
 ]
 
 BROKERS = {

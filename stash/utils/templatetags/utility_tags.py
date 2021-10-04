@@ -83,6 +83,21 @@ def avro_to_dict(bytes_data):
         return alert_dicts[0]
 
 
+def b64avro_to_dict(bytes_data):
+    """Convert base64 encoded, Avro serialized bytes data to a dict.
+
+    Args:
+        bytes_data (bytes): base64 encoded, Avro serialized bytes
+
+    Returns:
+        A dictionary
+    """
+    if bytes_data is not None:
+        with BytesIO(b64decode(bytes_data)) as fin:
+            alert_dicts = [r for r in fastavro.reader(fin)]  # list with single dict
+        return alert_dicts[0]
+
+
 @register.filter
 def jd_to_readable_date(jd):
     """Convert a julian date to a human readable string.

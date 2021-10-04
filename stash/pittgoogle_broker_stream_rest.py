@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Pitt-Google module for TOM Toolkit. Retrieves alerts from Pub/Sub message streams."""
+"""Pitt-Google module for TOM Toolkit. Retrieves alerts from Pub/Sub message streams.
+
+https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.subscriptions
+"""
 
 from django import forms
 from django.conf import settings
@@ -14,28 +17,42 @@ from urllib.parse import urlencode
 # from tom_targets.models import Target
 # import requests
 
-from .utils.templatetags.utility_tags import avro_to_dict
-from pittgoogle_consumer_rest import PittGoogleConsumerRest
+from .utils.templatetags.utility_tags import jd_to_readable_date
+from .pittgoogle_consumer_rest import PittGoogleConsumerRest
 
 
 SUBSCRIPTION_NAME = "ztf-loop"
+# Create the subscription if needed, and make sure we can connect to it.
+CONSUMER = PittGoogleConsumerRest(SUBSCRIPTION_NAME)
 
 
 class FilterAlertsStreamForm(GenericQueryForm):
     """Form for filtering a Pub/Sub stream.
 
     Fields:
-        objectId (``CharField``)
-        candid (``IntegerField``)
         max_results (``IntegerField``)
+        classtar_threshold (``FloatField``)
+        classtar_gt_lt (``ChoiceField``)
     """
 
-    # objectId = forms.CharField(required=False)
-    # candid = forms.IntegerField(required=False)
     max_results = forms.IntegerField(
         required=True, initial=10, min_value=1, max_value=100
     )
-    # timeout = forms.IntegerField(required=True, initial=10, min_value=1, max_value=600)
+    classtar_threshold = forms.FloatField(
+        required=False,
+        initial=0.5,
+        min_value=0,
+        max_value=1,
+        help_text="Star/Galaxy score threshold",
+    )
+    classtar_gt_lt_choices = [("lt", "less than"), ("gt", "greater than or equal")]
+    classtar_gt_lt = forms.ChoiceField(
+        required=True,
+        choices=classtar_gt_lt_choices,
+        initial="lt",
+        widget=forms.RadioSelect,
+        label="",
+    )
 
 
 class PittGoogleBrokerStream(GenericBroker):
@@ -44,29 +61,71 @@ class PittGoogleBrokerStream(GenericBroker):
     name = "Pitt-Google stream"
     form = FilterAlertsStreamForm
 
-    def __init__(self):
-        """Create the subscription if needed, and make sure we can connect to it."""
-        self.consumer = PittGoogleConsumerRest(SUBSCRIPTION_NAME)
-
     def fetch_alerts(self, parameters):
-        response = self._request_alerts(parameters)
-        alerts = response["receivedMessages"]
+        """Make the POST request(s) and filter the alerts."""
+        clean_params = self._clean_parameters(parameters)
+        alerts, i, max_tries = [], 0, 5  # avoid trying forever
+        while (len(alerts) < parameters['max_results']) & (i < max_tries):
+            i += 1
+            print(i)
+            print(len(alerts))
+            clean_params['max_results'] = parameters['max_results'] - len(alerts)
+            alerts += self._request_alerts(clean_params)  # List[dict]
         return iter(alerts)
 
     def _request_alerts(self, parameters):
-        """Pull alerts from the subscription, using a POST request.
+        """Pull alerts from the subscription using a POST request with OAuth.
 
-        https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.subscriptions/pull
+        Implements `_apply_user_filter`.
+        All messages (alerts) are automatically acknowledged, and therefore leave the subscription, unless there is an error.
         """
-        subscription_path = f"projects/{settings.GOOGLE_CLOUD_PROJECT}/subscriptions/{SUBSCRIPTION_NAME}"
-        response = requests.post(
-            f"{PITTGOOGLE_URL_STUB}/v1/{subscription_path}:pull",
+        response = CONSUMER.oauth.post(
+            f"{CONSUMER.subscription_url}:pull",
             data={"maxMessages": parameters["max_results"]},
         )
         response.raise_for_status()
-        return response.json()
+        alerts = CONSUMER.unpack_and_ack_messages(
+            response,
+            lighten_alerts=True,
+            callback=self._apply_user_filter,
+            parameters=parameters,
+        )
+        return alerts
 
-    def _clean_parameters(parameters):
+    @staticmethod
+    def _apply_user_filter(alert_dict, parameters):
+        """Apply the filter indicated by the form's parameters.
+
+        Used as the `callback` to `CONSUMER.unpack_and_ack_messages`.
+
+        Args:
+            `alert_dict`: ZTF alert packet data.
+                          The schema depends on the value of `lighten_alerts` passed to
+                          `CONSUMER.unpack_and_ack_messages`.
+                          If `lighten_alerts=False` it is the original ZTF alert schema
+                          (https://zwickytransientfacility.github.io/ztf-avro-alert/schema.html)
+                          If `lighten_alerts=True` the dict is flattened and only
+                          includes keys saved by `CONSUMER._lighten_alert`.
+
+            `parameters`: parameters submitted by the user through the form.
+
+        Returns:
+            `alert_dict` if it passes the filter, else `None`
+        """
+        if parameters["classtar_threshold"] is None:
+            # no filter requested. all alerts pass
+            return alert_dict
+
+        # run the filter
+        classtar_lt_thresh = alert_dict["classtar"] < parameters["classtar_threshold"]
+        if ((parameters["classtar_gt_lt"] == "lt") & classtar_lt_thresh) or (
+            (parameters["classtar_gt_lt"] == "gt") & ~classtar_lt_thresh
+        ):
+            return alert_dict
+        else:
+            return None
+
+    def _clean_parameters(self, parameters):
         clean_params = dict(parameters)
         return clean_params
 
@@ -74,12 +133,12 @@ class PittGoogleBrokerStream(GenericBroker):
     def to_generic_alert(self, alert):
         """."""
         return GenericAlert(
-            timestamp=alert["jd"],
-            url=query_url,
+            timestamp=jd_to_readable_date(alert["jd"]),
+            url=CONSUMER.subscription_url,
             id=alert["candid"],
             name=alert["objectId"],
             ra=alert["ra"],
             dec=alert["dec"],
-            mag=alert["mag"],
+            mag=alert["magpsf"],
             score=alert["classtar"],
         )
