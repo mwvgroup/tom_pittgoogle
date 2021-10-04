@@ -15,12 +15,10 @@ import os
 import tempfile
 
 
-# Consumer's project
-GOOGLE_CLOUD_PROJECT = "my-pgb-project-3"
-GOOGLE_APPLICATION_CREDENTIALS = "/Users/troyraen/Documents/broker/repo/GCP_auth_key-mypgb-raentroy.json"
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-PITTGOOGLE_OAUTH_CLIENT_ID = "187635371164-eoeg3i6vp4bcd26p7l8cvjir3ga6nb7a.apps.googleusercontent.com"
-PITTGOOGLE_OAUTH_CLIENT_SECRET = "NBak1Ka4RVVs9LqlL0nhczhy"
+# Pitt-Google auth
+GOOGLE_CLOUD_PROJECT = "my-pgb-project-3"  # user's project
+PITTGOOGLE_OAUTH_CLIENT_ID = os.getenv("PITTGOOGLE_OAUTH_CLIENT_ID")
+PITTGOOGLE_OAUTH_CLIENT_SECRET = os.getenv("PITTGOOGLE_OAUTH_CLIENT_SECRET")
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -259,8 +257,9 @@ TOM_ALERT_CLASSES = [
     'tom_alerts.brokers.tns.TNSBroker',
     'tom_alerts.brokers.fink.FinkBroker',
     'tommy.tommy.MyBroker',
-    'tommy.pittgoogle_broker_database.PittGoogleBrokerDatabase',
-    'tommy.pittgoogle_broker_stream_rest.PittGoogleBrokerStream',
+    'tom_pittgoogle.broker_database_python.PittGoogleBroker',
+    'tom_pittgoogle.broker_stream_python.PittGoogleBroker',
+    'tom_pittgoogle.broker_stream_rest.PittGoogleBroker',
 ]
 
 BROKERS = {
