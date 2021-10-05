@@ -3,6 +3,10 @@
 """Consumer class to pull or query alerts from Pitt-Google."""
 
 from django.conf import settings
+from google.api_core.exceptions import NotFound
+from google.cloud import bigquery
+from google.oauth2.credentials import Credentials
+import json
 from requests_oauthlib import OAuth2Session
 
 from .utils.templatetags.utility_tags import b64avro_to_dict
@@ -14,7 +18,7 @@ PITTGOOGLE_PROJECT_ID = "ardent-cycling-243415"
 class PittGoogleConsumer:
     """Consumer class to pull or query alerts from Pitt-Google, and manipulate them."""
 
-    def __init__(self, subscription_name):
+    def __init__(self, table_name):
         """Open a subscriber client. If the subscription doesn't exist, create it.
 
         View logs:
@@ -25,13 +29,18 @@ class PittGoogleConsumer:
         data, for example: `response = PittGoogleConsumer.oauth.get({url})`
         """
         self._authenticate()
+        self.credentials = Credentials(json.dumps(self.oauth.token))
+        self.client = bigquery.Client(
+            project=settings.GOOGLE_CLOUD_PROJECT, credentials=self.credentials
+        )
 
         # logger
         # TODO: add needed params/logic
 
-        # subscription or table resource
-        # TODO: add needed params/logic
-        self._get_resource()
+        # table
+        self.table_name = table_name
+        self.table_path = f"{PITTGOOGLE_PROJECT_ID}.ztf_alerts.{table_name}"
+        self._get_table()
 
     def _authenticate(self):
         """Authenticate the user via OAuth 2.0.
@@ -55,7 +64,7 @@ class PittGoogleConsumer:
             prompt="select_account",
         )
         print(
-            f"Please visit this URL to authorize PittGoogleConsumer:\n{authorization_url}"
+            f"Please visit this URL to authorize PittGoogleConsumer:\n\n{authorization_url}\n"
         )
         authorization_response = input(
             "Enter the full URL of the page you are redirected to after authorization:\n"
@@ -69,19 +78,67 @@ class PittGoogleConsumer:
         )
         self.oauth = oauth
 
-    def _get_resource(self):
+    def _get_table(self):
         """Make sure the resource exists, and we can connect to it."""
-        # TODO: add needed logic
-        return
+        try:
+            _ = self.client.get_table(self.table_path)
+        except NotFound:
+            raise
 
-    def unpack_messages(
-        self, response, lighten_alerts=False, callback=None, **kwargs
+    def create_sql_stmnt(self, parameters):
+        """Create the SQL statement and the query parameters job config."""
+        query_parameters = []
+
+        select = """
+            SELECT
+                publisher,
+                objectId,
+                candid,
+                CASE candidate.fid
+                    WHEN 1 THEN 'g' WHEN 2 THEN 'R' WHEN 3 THEN 'i' END as filter,
+                candidate.magpsf as mag,
+                candidate.jd as jd,
+                candidate.ra as ra,
+                candidate.dec as dec,
+                candidate.classtar as classtar
+        """
+        frm = f"FROM `{self.table_path}`"
+
+        where = ""
+        if parameters["objectId"]:
+            where = "WHERE objectId=@objectId"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter(
+                    "objectId", "STRING", parameters["objectId"]
+                )
+            )
+        elif parameters["candid"]:
+            where = "WHERE candid=@candid"
+            query_parameters.append(
+                bigquery.ScalarQueryParameter("candid", "INT64", parameters["candid"])
+            )
+
+        orderby = "ORDER BY jd DESC"
+        limit = "LIMIT @max_results"
+        query_parameters.append(
+            bigquery.ScalarQueryParameter(
+                "max_results", "INT64", parameters["max_results"]
+            )
+        )
+
+        # construct the SQL statement and job config
+        sql_stmnt = " ".join([select, frm, where, orderby, limit])
+        job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
+
+        return sql_stmnt, job_config
+
+    def unpack_query(
+        self, query_job, lighten_alerts=False, callback=None, **kwargs
     ):
         """Unpack messages in `response`. Run `callback` if present."""
-        msgs = response.json()["receivedMessages"]
         alerts = []
-        for msg in msgs:
-            alert_dict = b64avro_to_dict(msg["message"]["data"])
+        for row in query_job.result():
+            alert_dict = dict(row)
 
             if lighten_alerts:
                 alert_dict = self._lighten_alert(alert_dict)

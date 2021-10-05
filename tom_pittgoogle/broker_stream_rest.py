@@ -5,6 +5,12 @@
 Connects to the user's Pub/Sub subscription via the REST API.
 
 API Docs: https://cloud.google.com/pubsub/docs/reference/rest
+
+.. autosummary::
+   :nosignatures:
+
+   tom_pittgoogle.broker_stream_rest.FilterAlertsForm
+   tom_pittgoogle.broker_stream_rest.PittGoogleBrokerStreamRest
 """
 
 from django import forms
@@ -48,10 +54,10 @@ class FilterAlertsForm(GenericQueryForm):
     )
 
 
-class PittGoogleBroker(GenericBroker):
+class PittGoogleBrokerStreamRest(GenericBroker):
     """Pitt-Google broker interface to pull alerts from Pub/Sub via the REST API."""
 
-    name = "Pitt-Google"
+    name = "Pitt-Google stream rest"
     form = FilterAlertsForm
 
     def fetch_alerts(self, parameters):
@@ -84,7 +90,7 @@ class PittGoogleBroker(GenericBroker):
             lighten_alerts=True,
             callback=self._user_filter,
             parameters=parameters,
-        )
+        )  # List[dict]
         return alerts
 
     @staticmethod

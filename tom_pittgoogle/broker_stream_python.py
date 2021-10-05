@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Pitt-Google broker module for TOM Toolkit."""
+"""Pitt-Google broker module for TOM Toolkit.
+
+Connects to the user's Pub/Sub subscription via the Python client.
+
+API Docs: https://googleapis.dev/python/pubsub/latest/subscriber/index.html
+
+.. autosummary::
+   :nosignatures:
+
+   tom_pittgoogle.broker_stream_rest.FilterAlertsForm
+   tom_pittgoogle.broker_stream_rest.PittGoogleBrokerStreamRest
+"""
 
 from django import forms
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
-from consumer_stream_python import PittGoogleConsumer
+from .consumer_stream_python import PittGoogleConsumer
 
 
-CONSUMER = PittGoogleConsumer()
+SUBSCRIPTION_NAME = "ztf-loop"
+# Create the subscription if needed, and make sure we can connect to it.
+CONSUMER = PittGoogleConsumer(SUBSCRIPTION_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
@@ -16,17 +29,34 @@ class FilterAlertsForm(GenericQueryForm):
 
     Fields:
         max_results (``IntegerField``)
+        classtar_threshold (``FloatField``)
+        classtar_gt_lt (``ChoiceField``)
     """
 
     max_results = forms.IntegerField(
         required=True, initial=10, min_value=1, max_value=1000
     )
+    classtar_threshold = forms.FloatField(
+        required=False,
+        initial=0.5,
+        min_value=0,
+        max_value=1,
+        help_text="Star/Galaxy score threshold",
+    )
+    classtar_gt_lt_choices = [("lt", "less than"), ("gt", "greater than or equal")]
+    classtar_gt_lt = forms.ChoiceField(
+        required=True,
+        choices=classtar_gt_lt_choices,
+        initial="lt",
+        widget=forms.RadioSelect,
+        label="",
+    )
 
 
 class PittGoogleBroker(GenericBroker):
-    """Pitt-Google broker interface to fetch alerts."""
+    """Pitt-Google broker interface to pull alerts from Pub/Sub via the Python client."""
 
-    name = "Pitt-Google"
+    name = "Pitt-Google stream python"
     form = FilterAlertsForm
 
     @classmethod

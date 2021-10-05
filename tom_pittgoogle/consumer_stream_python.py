@@ -55,7 +55,7 @@ class PittGoogleConsumer:
             prompt="select_account",
         )
         print(
-            f"Please visit this URL to authorize PittGoogleConsumer:\n{authorization_url}"
+            f"Please visit this URL to authorize PittGoogleConsumer:\n\n{authorization_url}\n"
         )
         authorization_response = input(
             "Enter the full URL of the page you are redirected to after authorization:\n"
