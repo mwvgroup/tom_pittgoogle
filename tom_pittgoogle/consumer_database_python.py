@@ -6,30 +6,31 @@ from django.conf import settings
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
 from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.helpers import credentials_from_session
 import json
 from requests_oauthlib import OAuth2Session
-
-from .utils.templatetags.utility_tags import b64avro_to_dict
 
 
 PITTGOOGLE_PROJECT_ID = "ardent-cycling-243415"
 
 
-class PittGoogleConsumer:
+class ConsumerDatabasePython:
     """Consumer class to pull or query alerts from Pitt-Google, and manipulate them."""
 
     def __init__(self, table_name):
-        """Open a subscriber client. If the subscription doesn't exist, create it.
+        """Construct a consumer to query the database via the BigQuery Python client.
+
+        Open a subscriber client. If the subscription doesn't exist, create it.
 
         View logs:
             1. https://console.cloud.google.com
             2.
 
         Authentication creates an `OAuth2Session` object which can be used to fetch
-        data, for example: `response = PittGoogleConsumer.oauth.get({url})`
+        data, for example: `response = PittGoogleConsumer.oauth2.get({url})`
         """
-        self._authenticate()
-        self.credentials = Credentials(json.dumps(self.oauth.token))
+        self.authenticate()
+        self.credentials = credentials_from_session(self.oauth2)
         self.client = bigquery.Client(
             project=settings.GOOGLE_CLOUD_PROJECT, credentials=self.credentials
         )
@@ -42,24 +43,42 @@ class PittGoogleConsumer:
         self.table_path = f"{PITTGOOGLE_PROJECT_ID}.ztf_alerts.{table_name}"
         self._get_table()
 
-    def _authenticate(self):
-        """Authenticate the user via OAuth 2.0.
+        # for the TOM `GenericAlert`. this won't be very helpful without instructions.
+        self.query_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{settings.GOOGLE_CLOUD_PROJECT}/queries"
 
-        The user will need to visit a URL and authorize `PittGoogleConsumer` to manage
-        resources through their Google account.
+    # def _create_google_credentials(self):
+    #     token_url = "https://www.googleapis.com/oauth2/v4/token"
+    #     self.credentials = Credentials(json.dumps(self.oauth2.token))
+
+    def authenticate(self):
+        """Guide user through authentication; create `OAuth2Session` for HTTP requests.
+
+        The user will need to visit a URL and authorize `PittGoogleConsumer` to make
+        API calls on their behalf.
+
+        The user must have a Google account that is authorized make API calls
+        through the project defined by the `GOOGLE_CLOUD_PROJECT` variable in the
+        Django `settings.py` file. Any project can be used.
+
+        Additional requirement because this is still in dev: The OAuth is restricted
+        to users registered with Pitt-Google, so contact us.
+
+        TODO: Integrate this with Django. For now, the user interacts via command line.
         """
         # create an OAuth2Session
         client_id = settings.PITTGOOGLE_OAUTH_CLIENT_ID
         client_secret = settings.PITTGOOGLE_OAUTH_CLIENT_SECRET
+        authorization_base_url = "https://accounts.google.com/o/oauth2/auth"
         redirect_uri = "https://ardent-cycling-243415.appspot.com/"  # TODO: better page
         scopes = [
             "https://www.googleapis.com/auth/logging.write",
+            "https://www.googleapis.com/auth/bigquery",
         ]
-        oauth = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scopes)
+        oauth2 = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scopes)
 
         # instruct the user to authorize
-        authorization_url, state = oauth.authorization_url(
-            "https://accounts.google.com/o/oauth2/auth",
+        authorization_url, state = oauth2.authorization_url(
+            authorization_base_url,
             access_type="offline",
             prompt="select_account",
         )
@@ -71,12 +90,12 @@ class PittGoogleConsumer:
         )
 
         # complete the authentication
-        token = oauth.fetch_token(
+        _ = oauth2.fetch_token(
             "https://accounts.google.com/o/oauth2/token",
             authorization_response=authorization_response,
             client_secret=client_secret,
         )
-        self.oauth = oauth
+        self.oauth2 = oauth2
 
     def _get_table(self):
         """Make sure the resource exists, and we can connect to it."""
@@ -102,6 +121,7 @@ class PittGoogleConsumer:
                 candidate.dec as dec,
                 candidate.classtar as classtar
         """
+
         frm = f"FROM `{self.table_path}`"
 
         where = ""
@@ -119,6 +139,7 @@ class PittGoogleConsumer:
             )
 
         orderby = "ORDER BY jd DESC"
+
         limit = "LIMIT @max_results"
         query_parameters.append(
             bigquery.ScalarQueryParameter(
@@ -133,15 +154,12 @@ class PittGoogleConsumer:
         return sql_stmnt, job_config
 
     def unpack_query(
-        self, query_job, lighten_alerts=False, callback=None, **kwargs
+        self, query_job, callback=None, **kwargs
     ):
         """Unpack messages in `response`. Run `callback` if present."""
         alerts = []
         for row in query_job.result():
             alert_dict = dict(row)
-
-            if lighten_alerts:
-                alert_dict = self._lighten_alert(alert_dict)
 
             if callback is not None:
                 alert_dict = callback(alert_dict, **kwargs)
@@ -150,17 +168,6 @@ class PittGoogleConsumer:
                 alerts.append(alert_dict)
 
         return alerts
-
-    def _lighten_alert(self, alert_dict):
-        keep_fields = {
-            "top-level": ["objectId", "candid", ],
-            "candidate": ["jd", "ra", "dec", "magpsf", "classtar", ],
-        }
-        alert_lite = {k: alert_dict[k] for k in keep_fields["top-level"]}
-        alert_lite.update(
-            {k: alert_dict["candidate"][k] for k in keep_fields["candidate"]}
-        )
-        return alert_lite
 
     def _log_and_print(self, msg, severity="INFO"):
         # request = {
@@ -174,7 +181,7 @@ class PittGoogleConsumer:
         #     },
         #     'entries': [{'textPayload': msg, 'severity': severity}],
         # }
-        # response = self.oauth.post(self.logging_url, json=json.dumps(request))
+        # response = self.oauth2.post(self.logging_url, json=json.dumps(request))
         # print(response.content)
         # response.raise_for_status()
         print(msg)

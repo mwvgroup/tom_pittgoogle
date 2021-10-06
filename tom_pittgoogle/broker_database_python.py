@@ -17,11 +17,12 @@ API Docs: https://googleapis.dev/python/bigquery/latest/reference.html
 from django import forms
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
-from .consumer_database_python import PittGoogleConsumer
+from .consumer_database_python import ConsumerDatabasePython
+from .utils.templatetags.utility_tags import jd_to_readable_date
 
 
 TABLE_NAME = "alerts"
-CONSUMER = PittGoogleConsumer(TABLE_NAME)
+CONSUMER = ConsumerDatabasePython(TABLE_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
@@ -29,18 +30,20 @@ class FilterAlertsForm(GenericQueryForm):
 
     Fields:
         objectId (``CharField``)
+
         candid (``IntegerField``)
+
         max_results (``IntegerField``)
     """
 
     objectId = forms.CharField(required=False)
     candid = forms.IntegerField(required=False)
     max_results = forms.IntegerField(
-        required=True, initial=10, min_value=1, max_value=1000
+        required=True, initial=10, min_value=1
     )
 
 
-class PittGoogleBroker(GenericBroker):
+class PittGoogleBrokerDatabasePython(GenericBroker):
     """Pitt-Google broker interface to query the database."""
 
     name = "Pitt-Google database python"
@@ -55,17 +58,15 @@ class PittGoogleBroker(GenericBroker):
     def _request_alerts(self, parameters):
         """Query alerts using the user filter and unpack.
 
-        The current user form/filter is implemented in the SQL statement,
-        so there is no need to use a `callback`, or call this function more than once.
+        The current user filter is implemented in the SQL statement, so there
+        is no need to use a `callback`, or to call this function more than once.
         """
         sql_stmnt, job_config = CONSUMER.create_sql_stmnt(parameters)
         query_job = CONSUMER.client.query(sql_stmnt, job_config=job_config)
-        alerts = CONSUMER.unpack_query(
-            query_job, lighten_alerts=True, callback=None
-        )  # List[dict]
+        alerts = CONSUMER.unpack_query(query_job, callback=None)  # List[dict]
         return alerts
 
-    def _clean_parameters(parameters):
+    def _clean_parameters(self, parameters):
         clean_params = dict(parameters)
 
         # make sure objectId and candid are not both set
@@ -80,7 +81,7 @@ class PittGoogleBroker(GenericBroker):
         """."""
         return GenericAlert(
             timestamp=jd_to_readable_date(alert["jd"]),
-            url=query_url,
+            url=CONSUMER.query_url,
             id=alert["candid"],
             name=alert["objectId"],
             ra=alert["ra"],
