@@ -7,5 +7,5 @@ import os
 
 
 if 'BUILD_IN_RTD' in os.environ:
-    os.environ['DJANGO_SETTINGS_MODULE'] = "tom_pittgoogle.settings"
+    # os.environ['DJANGO_SETTINGS_MODULE'] = "tom_pittgoogle.settings"
     application = get_wsgi_application()
