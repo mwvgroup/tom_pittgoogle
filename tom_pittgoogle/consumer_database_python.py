@@ -1,6 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Consumer class to pull or query alerts from Pitt-Google."""
+"""Consumer class to manage BigQuery connections via Python client, and work with data.
+
+Used by `PittGoogleBrokerDatabasePython`.
+
+Typical workflow:
+
+.. code:: python
+
+    consumer = ConsumerStreamRest(subscription_name)
+
+    response = consumer.oauth2.post(
+        f"{consumer.subscription_url}:pull", data={"maxMessages": max_messages},
+    )
+
+    alerts = consumer.unpack_and_ack_messages(
+        response, lighten_alerts=True, callback=user_filter,
+    )  # List[dict]
+
+See especially:
+
+.. autosummary::
+   :nosignatures:
+
+   ConsumerStreamRest.authenticate
+   ConsumerStreamRest.get_create_subscription
+   ConsumerStreamRest.unpack_and_ack_messages
+
+Pub/Sub REST API docs: https://cloud.google.com/pubsub/docs/reference/rest
+"""
 
 from django.conf import settings
 from google.api_core.exceptions import NotFound

@@ -10,4 +10,5 @@ Welcome to tom_pittgoogle's documentation!
    :maxdepth: 1
    :caption: API Reference
 
-   api
+   database_python
+   stream_rest

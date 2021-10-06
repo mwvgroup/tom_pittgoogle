@@ -2,13 +2,13 @@
 # -*- coding: UTF-8 -*-
 """Consumer class to manage Pub/Sub connections via REST, and work with message data.
 
-Called by `PittGoogleBrokerStreamRest`.
+Used by `PittGoogleBrokerStreamRest`.
 
 Typical workflow:
 
 .. code:: python
 
-    consumer = PittGoogleConsumerStreamRest(subscription_name)
+    consumer = ConsumerStreamRest(subscription_name)
 
     response = consumer.oauth2.post(
         f"{consumer.subscription_url}:pull", data={"maxMessages": max_messages},
@@ -23,9 +23,9 @@ See especially:
 .. autosummary::
    :nosignatures:
 
-   PittGoogleConsumerStreamRest.authenticate
-   PittGoogleConsumerStreamRest.get_create_subscription
-   PittGoogleConsumerStreamRest.unpack_and_ack_messages
+   ConsumerStreamRest.authenticate
+   ConsumerStreamRest.get_create_subscription
+   ConsumerStreamRest.unpack_and_ack_messages
 
 Pub/Sub REST API docs: https://cloud.google.com/pubsub/docs/reference/rest
 """
@@ -40,7 +40,7 @@ from .utils.templatetags.utility_tags import b64avro_to_dict
 PITTGOOGLE_PROJECT_ID = "ardent-cycling-243415"
 
 
-class PittGoogleConsumerStreamRest:
+class ConsumerStreamRest:
     """Consumer class to manage Pub/Sub connections and work with messages.
 
     Initialization does the following:

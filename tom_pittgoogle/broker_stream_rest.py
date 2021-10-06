@@ -2,8 +2,7 @@
 # -*- coding: UTF-8 -*-
 """TOM Toolkit broker to listen to a Pitt-Google Pub/Sub stream via the REST API.
 
-Relies on `PittGoogleConsumerStreamRest` (as `CONSUMER`) to
-manage the connections and work with data.
+Relies on `ConsumerStreamRest` to manage the connections and work with data.
 
 See especially:
 
@@ -18,13 +17,17 @@ from django import forms
 import os
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
-from .consumer_stream_rest import PittGoogleConsumerStreamRest
+from .consumer_stream_rest import ConsumerStreamRest
 from .utils.templatetags.utility_tags import jd_to_readable_date
 
 
 SUBSCRIPTION_NAME = "ztf-loop"  # heartbeat stream. ~1 ZTF alert/second.
+# TODO: Connect the OAuth to a Django page,
+# and move the `CONSUMER` instantiation to a more appropriate place in the logic
+# so the end user can authenticate.
+# Currently, the developer must authticate when launching the server.
 if 'BUILD_IN_RTD' not in os.environ:
-    CONSUMER = PittGoogleConsumerStreamRest(SUBSCRIPTION_NAME)
+    CONSUMER = ConsumerStreamRest(SUBSCRIPTION_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
@@ -40,7 +43,7 @@ class FilterAlertsForm(GenericQueryForm):
     """
 
     max_results = forms.IntegerField(
-        required=True, initial=10, min_value=1, max_value=1000
+        required=True, initial=10, min_value=1
     )
     classtar_threshold = forms.FloatField(
         required=False,
@@ -60,7 +63,7 @@ class FilterAlertsForm(GenericQueryForm):
 
 
 class PittGoogleBrokerStreamRest(GenericBroker):
-    """Pitt-Google broker interface to pull alerts from a stream via the REST API."""
+    """Pitt-Google broker to pull alerts from a stream via the REST API."""
 
     name = "Pitt-Google stream rest"
     form = FilterAlertsForm

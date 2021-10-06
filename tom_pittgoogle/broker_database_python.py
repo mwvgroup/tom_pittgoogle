@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Pitt-Google broker module for TOM Toolkit.
+"""TOM Toolkit broker to listen to a Pitt-Google Pub/Sub stream via the REST API.
 
-Connects to Pitt-Google's BigQuery table via the Python client.
+Relies on `ConsumerDatabasePython` to manage the connections and work with data.
 
-API Docs: https://googleapis.dev/python/bigquery/latest/reference.html
+See especially:
 
 .. autosummary::
    :nosignatures:
 
-   tom_pittgoogle.broker_database_python.FilterAlertsForm
-   tom_pittgoogle.broker_database_python.PittGoogleBroker
-
+   PittGoogleBrokerDatabasePython.request_alerts
 """
 
 from django import forms
+import os
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
 from .consumer_database_python import ConsumerDatabasePython
@@ -22,11 +21,16 @@ from .utils.templatetags.utility_tags import jd_to_readable_date
 
 
 TABLE_NAME = "alerts"
-CONSUMER = ConsumerDatabasePython(TABLE_NAME)
+# TODO: Connect the OAuth to a Django page,
+# and move the `CONSUMER` instantiation to a more appropriate place in the logic
+# so the end user can authenticate.
+# Currently, the developer must authticate when launching the server.
+if 'BUILD_IN_RTD' not in os.environ:
+    CONSUMER = ConsumerDatabasePython(TABLE_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
-    """Form for filtering a table of alerts.
+    """Basic form for filtering alerts.
 
     Fields:
         objectId (``CharField``)
@@ -44,22 +48,26 @@ class FilterAlertsForm(GenericQueryForm):
 
 
 class PittGoogleBrokerDatabasePython(GenericBroker):
-    """Pitt-Google broker interface to query the database."""
+    """Pitt-Google broker to query alerts from the database via the Python client."""
 
     name = "Pitt-Google database python"
     form = FilterAlertsForm
 
     def fetch_alerts(self, parameters):
-        """Query alerts using the user filter, unpack, return an iterator."""
+        """Entry point to query and filter alerts."""
         clean_params = self._clean_parameters(parameters)
-        alerts = self._request_alerts(clean_params)
+        alerts = self.request_alerts(clean_params)
         return iter(alerts)
 
-    def _request_alerts(self, parameters):
+    def request_alerts(self, parameters):
         """Query alerts using the user filter and unpack.
 
-        The current user filter is implemented in the SQL statement, so there
-        is no need to use a `callback`, or to call this function more than once.
+        The SQL statement implements the current user filter.
+        This means there is no need to call this function more than once,
+        or to use a `callback`.
+
+        Returns:
+            alerts (List[dict])
         """
         sql_stmnt, job_config = CONSUMER.create_sql_stmnt(parameters)
         query_job = CONSUMER.client.query(sql_stmnt, job_config=job_config)
@@ -78,7 +86,7 @@ class PittGoogleBrokerDatabasePython(GenericBroker):
         return clean_params
 
     def to_generic_alert(self, alert):
-        """."""
+        """Map the Pitt-Google alert to a TOM `GenericAlert`."""
         return GenericAlert(
             timestamp=jd_to_readable_date(alert["jd"]),
             url=CONSUMER.query_url,
