@@ -33,9 +33,9 @@ Pub/Sub REST API docs: https://cloud.google.com/pubsub/docs/reference/rest
 from django.conf import settings
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
-from google.oauth2.credentials import Credentials
+# from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.helpers import credentials_from_session
-import json
+# import json
 from requests_oauthlib import OAuth2Session
 
 
