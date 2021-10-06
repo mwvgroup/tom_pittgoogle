@@ -20,6 +20,12 @@ from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 from .consumer_stream_rest import ConsumerStreamRest
 from .utils.templatetags.utility_tags import jd_to_readable_date
 
+if 'BUILD_IN_RTD' in os.environ:
+    import django
+    from django.core.wsgi import get_wsgi_application
+    django.setup()
+    application = get_wsgi_application()
+
 
 SUBSCRIPTION_NAME = "ztf-loop"  # heartbeat stream. ~1 ZTF alert/second.
 # TODO: Connect the OAuth to a Django page,
