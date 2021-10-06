@@ -1,36 +1,41 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Pitt-Google broker module for TOM Toolkit.
+"""TOM Toolkit broker to listen to a Pitt-Google Pub/Sub stream via the REST API.
 
-Connects to the user's Pub/Sub subscription via the REST API.
+Relies on `PittGoogleConsumerStreamRest` (as `CONSUMER`) to
+manage the connections and work with data.
 
-API Docs: https://cloud.google.com/pubsub/docs/reference/rest
+See especially:
 
 .. autosummary::
    :nosignatures:
 
-   tom_pittgoogle.broker_stream_rest.FilterAlertsForm
-   tom_pittgoogle.broker_stream_rest.PittGoogleBrokerStreamRest
+   PittGoogleBrokerStreamRest.request_alerts
+   PittGoogleBrokerStreamRest.user_filter
 """
 
 from django import forms
+import os
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
-from .consumer_stream_rest import PittGoogleConsumer
+from .consumer_stream_rest import PittGoogleConsumerStreamRest
 from .utils.templatetags.utility_tags import jd_to_readable_date
 
 
-SUBSCRIPTION_NAME = "ztf-loop"
-# Create the subscription if needed, and make sure we can connect to it.
-CONSUMER = PittGoogleConsumer(SUBSCRIPTION_NAME)
+SUBSCRIPTION_NAME = "ztf-loop"  # heartbeat stream. ~1 ZTF alert/second.
+if 'BUILD_IN_RTD' not in os.environ:
+    CONSUMER = PittGoogleConsumerStreamRest(SUBSCRIPTION_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
-    """Form for filtering alerts.
+    """Basic form for filtering alerts.
 
     Fields:
+
         max_results (``IntegerField``)
+
         classtar_threshold (``FloatField``)
+
         classtar_gt_lt (``ChoiceField``)
     """
 
@@ -55,32 +60,30 @@ class FilterAlertsForm(GenericQueryForm):
 
 
 class PittGoogleBrokerStreamRest(GenericBroker):
-    """Pitt-Google broker interface to pull alerts from Pub/Sub via the REST API."""
+    """Pitt-Google broker interface to pull alerts from a stream via the REST API."""
 
     name = "Pitt-Google stream rest"
     form = FilterAlertsForm
 
     def fetch_alerts(self, parameters):
-        """Pull or query alerts, unpack, apply the user filter, return an iterator."""
+        """Entry point to pull and filter alerts."""
         clean_params = self._clean_parameters(parameters)
 
         alerts, i, max_tries = [], 0, 5  # avoid trying forever
         while (len(alerts) < parameters['max_results']) & (i < max_tries):
             i += 1
-            print(i)
-            print(len(alerts))
             clean_params['max_results'] = parameters['max_results'] - len(alerts)
-            alerts += self._request_alerts(clean_params)  # List[dict]
+            alerts += self.request_alerts(clean_params)  # List[dict]
 
         return iter(alerts)
 
-    def _request_alerts(self, parameters):
-        """Pull alerts using a POST request with OAuth, unpack, apply user filter.
+    def request_alerts(self, parameters):
+        """Pull alerts using a POST request with OAuth2, unpack, apply user filter.
 
-        All messages (alerts) are automatically acknowledged, and therefore leave the
-        subscription, unless there is an error.
+        Returns:
+            alerts (List[dict])
         """
-        response = CONSUMER.oauth.post(
+        response = CONSUMER.oauth2.post(
             f"{CONSUMER.subscription_url}:pull",
             data={"maxMessages": parameters["max_results"]},
         )
@@ -88,25 +91,25 @@ class PittGoogleBrokerStreamRest(GenericBroker):
         alerts = CONSUMER.unpack_and_ack_messages(
             response,
             lighten_alerts=True,
-            callback=self._user_filter,
+            callback=self.user_filter,
             parameters=parameters,
         )  # List[dict]
         return alerts
 
     @staticmethod
-    def _user_filter(alert_dict, parameters):
+    def user_filter(alert_dict, parameters):
         """Apply the filter indicated by the form's parameters.
 
         Used as the `callback` to `CONSUMER.unpack_and_ack_messages`.
 
         Args:
-            `alert_dict`: Single alert, ZTF packet data.
+            `alert_dict`: Single alert, ZTF packet data as a dictionary.
                           The schema depends on the value of `lighten_alerts` passed to
                           `CONSUMER.unpack_and_ack_messages`.
                           If `lighten_alerts=False` it is the original ZTF alert schema
                           (https://zwickytransientfacility.github.io/ztf-avro-alert/schema.html)
-                          If `lighten_alerts=True` the dict is flattened and only
-                          includes keys saved by `CONSUMER._lighten_alert`.
+                          If `lighten_alerts=True` the dict is flattened and extra
+                          fields are dropped.
 
             `parameters`: parameters submitted by the user through the form.
 

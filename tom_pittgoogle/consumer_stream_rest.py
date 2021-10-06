@@ -1,10 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Consumer class to pull alerts from a Pitt-Google message stream.
+"""Consumer class to manage Pub/Sub connections via REST, and work with message data.
 
-Connects to the user's Pub/Sub subscription via the REST API.
+Called by `PittGoogleBrokerStreamRest`.
 
-API Docs: https://cloud.google.com/pubsub/docs/reference/rest
+Typical workflow:
+
+.. code:: python
+
+    consumer = PittGoogleConsumerStreamRest(subscription_name)
+
+    response = consumer.oauth2.post(
+        f"{consumer.subscription_url}:pull", data={"maxMessages": max_messages},
+    )
+
+    alerts = consumer.unpack_and_ack_messages(
+        response, lighten_alerts=True, callback=user_filter,
+    )  # List[dict]
+
+See especially:
+
+.. autosummary::
+   :nosignatures:
+
+   PittGoogleConsumerStreamRest.authenticate
+   PittGoogleConsumerStreamRest.get_create_subscription
+   PittGoogleConsumerStreamRest.unpack_and_ack_messages
+
+Pub/Sub REST API docs: https://cloud.google.com/pubsub/docs/reference/rest
 """
 
 from django.conf import settings
@@ -17,27 +40,28 @@ from .utils.templatetags.utility_tags import b64avro_to_dict
 PITTGOOGLE_PROJECT_ID = "ardent-cycling-243415"
 
 
-class PittGoogleConsumer:
-    """Manage a subscription that is linked to a topic published by Pitt-Google."""
+class PittGoogleConsumerStreamRest:
+    """Consumer class to manage Pub/Sub connections and work with messages.
+
+    Initialization does the following:
+
+        Authenticate the user. Create an `OAuth2Session` object for the user/broker
+        to make HTTP requests with.
+
+        Make sure the subscription exists and we can connect. Create it, if needed.
+    """
 
     def __init__(self, subscription_name):
-        """Open a subscriber client. If the subscription doesn't exist, create it.
-
-        View logs:
-            1. https://console.cloud.google.com
-            2.
-
-        Authentication creates an `OAuth2Session` object which can be used to fetch
-        data, for example: `response = PittGoogleConsumer.oauth.get({url})`
-        """
-        self._authenticate()
+        """Create an `OAuth2Session`. Set `subscription_url` and check connection."""
+        self.authenticate()
 
         # logger
-        # TODO: debug the logger. it currently doesn't not work
-        self.logging_url = "https://logging.googleapis.com/v2/entries:write"
-        self.log_name = (
-            f"projects/{settings.GOOGLE_CLOUD_PROJECT}/logs/{subscription_name}"
-        )
+        # TODO: debug the logger
+        # the user probably prefers a more standard logger anyway
+        # self.logging_url = "https://logging.googleapis.com/v2/entries:write"
+        # self.log_name = (
+        #     f"projects/{settings.GOOGLE_CLOUD_PROJECT}/logs/{subscription_name}"
+        # )
 
         # subscription
         self.subscription_name = subscription_name
@@ -47,14 +71,23 @@ class PittGoogleConsumer:
         self.subscription_url = (
             f"https://pubsub.googleapis.com/v1/{self.subscription_path}"
         )
-        self.topic_path = ""  # for user info only. set in _get_create_subscription()
-        self._get_create_subscription()
+        self.topic_path = ""  # for user info only. set in get_create_subscription()
+        self.get_create_subscription()
 
-    def _authenticate(self):
-        """Authenticate the user via OAuth 2.0.
+    def authenticate(self):
+        """Guide user through authentication; create `OAuth2Session` for HTTP requests.
 
-        The user will need to visit a URL and authorize `PittGoogleConsumer` to manage
-        resources through their Google account.
+        The user will need to visit a URL and authorize `PittGoogleConsumer` to make
+        API calls on their behalf.
+
+        The user must have a Google account that is authorized make API calls
+        through the project defined by the `GOOGLE_CLOUD_PROJECT` variable in the
+        Django `settings.py` file. Any project can be used.
+
+        Additional requirement because this is still in dev: The OAuth is restricted
+        to users registered with Pitt-Google, so contact us.
+
+        TODO: Integrate this with Django. For now, the user interacts via command line.
         """
         # create an OAuth2Session
         client_id = settings.PITTGOOGLE_OAUTH_CLIENT_ID
@@ -64,10 +97,10 @@ class PittGoogleConsumer:
             "https://www.googleapis.com/auth/logging.write",
             "https://www.googleapis.com/auth/pubsub",
         ]
-        oauth = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scopes)
+        oauth2 = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scopes)
 
         # instruct the user to authorize
-        authorization_url, state = oauth.authorization_url(
+        authorization_url, state = oauth2.authorization_url(
             "https://accounts.google.com/o/oauth2/auth",
             access_type="offline",
             prompt="select_account",
@@ -80,43 +113,44 @@ class PittGoogleConsumer:
         )
 
         # complete the authentication
-        token = oauth.fetch_token(
+        _ = oauth2.fetch_token(
             "https://accounts.google.com/o/oauth2/token",
             authorization_response=authorization_response,
             client_secret=client_secret,
         )
-        self.oauth = oauth
+        self.oauth2 = oauth2
 
-    def _get_create_subscription(self):
-        """Create the subscription if needed.
+    def get_create_subscription(self):
+        """Make sure the subscription exists and we can connect.
 
-        1.  Check whether a subscription exists in the user's GCP project.
+        If the subscription doesn't exist, try to create one (in the user's project)
+        that is attached to a topic of the same name in the Pitt-Google project.
 
-        2.  If it doesn't, try to create a subscription in the user's project that is
-            attached to a topic of the same name in the Pitt-Google project.
+        Note that messages published before the subscription is created are not
+        available.
         """
         # check if subscription exists
-        get_response = self.oauth.get(self.subscription_url)
+        response = self.oauth2.get(self.subscription_url)
 
-        if get_response.status_code == 200:
+        if response.status_code == 200:
             # subscription exists. tell the user which topic it's connected to.
-            self.topic_path = json.loads(get_response.content)["topic"]
+            self.topic_path = json.loads(response.content)["topic"]
             print(f"Subscription exists: {self.subscription_path}")
             print(f"Connected to topic: {self.topic_path}")
 
-        elif get_response.status_code == 404:
+        elif response.status_code == 404:
             # subscription doesn't exist. try to create it.
             self._create_subscription()
 
         else:
-            print(get_response.content)
-            get_response.raise_for_status()
+            print(response.content)
+            response.raise_for_status()
 
     def _create_subscription(self):
         """Try to create the subscription."""
         topic_path = f"projects/{PITTGOOGLE_PROJECT_ID}/topics/{self.subscription_name}"
         request = {"topic": topic_path}
-        put_response = self.oauth.put(f"{self.subscription_url}", data=request)
+        put_response = self.oauth2.put(f"{self.subscription_url}", data=request)
 
         if put_response.status_code == 200:
             # subscription created successfully
@@ -147,7 +181,13 @@ class PittGoogleConsumer:
     def unpack_and_ack_messages(
         self, response, lighten_alerts=False, callback=None, **kwargs
     ):
-        """Unpack and acknowledge messages in `response`. Run `callback` if present."""
+        """Unpack and acknowledge messages in `response`; run `callback` if present.
+
+        If `lighten_alerts` is True, drop extra fields and flatten the alert dict.
+
+        `callback` is assumed to be a filter. It should accept an alert dict
+        and return the dict if the alert passes the filter, else return None.
+        """
         # unpack and run the callback
         msgs = response.json()["receivedMessages"]
         alerts, ack_ids = [], []
@@ -170,6 +210,7 @@ class PittGoogleConsumer:
         return alerts
 
     def _lighten_alert(self, alert_dict):
+        """Return the alert as a flat dict, keeping only the fields in `keep_fields`."""
         keep_fields = {
             "top-level": ["objectId", "candid", ],
             "candidate": ["jd", "ra", "dec", "magpsf", "classtar", ],
@@ -181,14 +222,23 @@ class PittGoogleConsumer:
         return alert_lite
 
     def _ack_messages(self, ack_ids):
-        response = self.oauth.post(
+        """Send message acknowledgements to Pub/Sub."""
+        response = self.oauth2.post(
             f"{self.subscription_url}:acknowledge", data={"ackIds": ack_ids},
         )
         response.raise_for_status()
 
     def delete_subscription(self):
-        """Delete the subscription, if it exists."""
-        response = self.oauth.delete(self.subscription_url)
+        """Delete the subscription.
+
+        This is provided for user's convenience, but it is not necessary and is not
+        automatically called.
+
+            Storage of unacknowledged Pub/Sub messages does not result in fees.
+
+            Unused subscriptions automatically expire; default is 31 days.
+        """
+        response = self.oauth2.delete(self.subscription_url)
         if response.status_code == 200:
             self._log_and_print(f"Deleted subscription: {self.subscription_path}")
         elif response.status_code == 404:
@@ -199,6 +249,7 @@ class PittGoogleConsumer:
             response.raise_for_status()
 
     def _log_and_print(self, msg, severity="INFO"):
+        # TODO: fix this
         # request = {
         #     'logName': self.log_name,
         #     'resource': {
@@ -210,7 +261,7 @@ class PittGoogleConsumer:
         #     },
         #     'entries': [{'textPayload': msg, 'severity': severity}],
         # }
-        # response = self.oauth.post(self.logging_url, json=json.dumps(request))
+        # response = self.oauth2.post(self.logging_url, json=json.dumps(request))
         # print(response.content)
         # response.raise_for_status()
         print(msg)
