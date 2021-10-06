@@ -2,9 +2,19 @@ fastavro
 google-cloud-bigquery
 google-cloud-logging
 google-cloud-pubsub
+requests_oauthlib
 tomtoolkit
 
-# Needed for building docs
+# Django
+django
+django-bootstrap4
+django-crispy-forms
+django-environ
+django-extensions
+django-guardian
+django-recaptcha
+
+# RTD
 docutils<0.17  # render lists properly
 myst-parser
 sphinx
