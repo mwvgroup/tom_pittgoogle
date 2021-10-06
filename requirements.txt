@@ -2,6 +2,7 @@ fastavro
 google-cloud-bigquery
 google-cloud-logging
 google-cloud-pubsub
+google-auth-oauthlib
 requests_oauthlib
 tomtoolkit
 
