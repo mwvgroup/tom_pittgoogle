@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 """Consumer class to manage BigQuery connections via Python client, and work with data.
-
-Used by `PittGoogleBrokerDatabasePython`.
+change
+Used by `BrokerDatabasePython`.
 
 Typical workflow:
 
 .. code:: python
 
-    # TODO: fill in
+    consumer = ConsumerDatabasePython(table_name)
+    sql_stmnt, job_config = consumer.create_sql_stmnt(parameters)
+    query_job = consumer.client.query(sql_stmnt, job_config=job_config)
+    alerts = consumer.unpack_query(query_job, callback=None)  # List[dict]
 
 See especially:
 
@@ -25,6 +28,7 @@ See especially:
 from django.conf import settings
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
+from google.cloud import logging as gc_logging
 # from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.helpers import credentials_from_session
 # import json
@@ -35,20 +39,29 @@ PITTGOOGLE_PROJECT_ID = "ardent-cycling-243415"
 
 
 class ConsumerDatabasePython:
-    """Consumer class to pull or query alerts from Pitt-Google, and manipulate them."""
+    """Consumer class to query alerts from BigQuery, and manipulate them.
+
+    Initialization does the following:
+
+        Authenticate the user via OAuth 2.0.
+
+        Create a `google.cloud.bigquery.Client` object for the user/broker
+        to query database with.
+
+        Check that the table exists and we can connect.
+
+    To view logs, visit: https://console.cloud.google.com/logs
+        Make sure you are logged in, and your project is selected in the dropdown
+        at the top.
+
+        Click the "Log name" dropdown and select the table name you instantiate this
+        consumer with.
+
+    TODO: Give the user a standard logger.
+    """
 
     def __init__(self, table_name):
-        """Construct a consumer to query the database via the BigQuery Python client.
-
-        Open a subscriber client. If the subscription doesn't exist, create it.
-
-        View logs:
-            1. https://console.cloud.google.com
-            2.
-
-        Authentication creates an `OAuth2Session` object which can be used to fetch
-        data, for example: `response = PittGoogleConsumer.oauth2.get({url})`
-        """
+        """Authenticate user; create a client, the table path and check connection."""
         self.authenticate()
         self.credentials = credentials_from_session(self.oauth2)
         self.client = bigquery.Client(
@@ -56,19 +69,18 @@ class ConsumerDatabasePython:
         )
 
         # logger
-        # TODO: add needed params/logic
+        log_client = gc_logging.Client(
+            project=settings.GOOGLE_CLOUD_PROJECT, credentials=self.credentials
+        )
+        self.logger = log_client.logger(table_name)
 
         # table
         self.table_name = table_name
-        self.table_path = f"{PITTGOOGLE_PROJECT_ID}.ztf_alerts.{table_name}"
+        self.table_path = f"{PITTGOOGLE_PROJECT_ID}.{table_name}"
         self._get_table()
 
         # for the TOM `GenericAlert`. this won't be very helpful without instructions.
         self.query_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{settings.GOOGLE_CLOUD_PROJECT}/queries"
-
-    # def _create_google_credentials(self):
-    #     token_url = "https://www.googleapis.com/oauth2/v4/token"
-    #     self.credentials = Credentials(json.dumps(self.oauth2.token))
 
     def authenticate(self):
         """Guide user through authentication; create `OAuth2Session` for HTTP requests.
@@ -100,7 +112,9 @@ class ConsumerDatabasePython:
         authorization_url, state = oauth2.authorization_url(
             authorization_base_url,
             access_type="offline",
-            prompt="select_account",
+            # prompt="select_account",
+            # access_type="online",
+            # prompt="auto",
         )
         print(
             f"Please visit this URL to authorize PittGoogleConsumer:\n\n{authorization_url}\n"
@@ -121,8 +135,13 @@ class ConsumerDatabasePython:
         """Make sure the resource exists, and we can connect to it."""
         try:
             _ = self.client.get_table(self.table_path)
-        except NotFound:
-            raise
+        except NotFound as e:
+            self._log_and_print(
+                f"Table not found. Can't connect to {self.table_path}", severity="DEBUG"
+            )
+            raise e
+        else:
+            self._log_and_print(f"Successfully connected to {self.table_path}")
 
     def create_sql_stmnt(self, parameters):
         """Create the SQL statement and the query parameters job config."""
@@ -190,18 +209,5 @@ class ConsumerDatabasePython:
         return alerts
 
     def _log_and_print(self, msg, severity="INFO"):
-        # request = {
-        #     'logName': self.log_name,
-        #     'resource': {
-        #         'type': 'pubsub_subscription',
-        #         'labels': {
-        #             'project_id': settings.GOOGLE_CLOUD_PROJECT,
-        #             'subscription_id': self.subscription_name
-        #         },
-        #     },
-        #     'entries': [{'textPayload': msg, 'severity': severity}],
-        # }
-        # response = self.oauth2.post(self.logging_url, json=json.dumps(request))
-        # print(response.content)
-        # response.raise_for_status()
+        self.logger.log_text(msg, severity=severity)
         print(msg)

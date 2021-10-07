@@ -103,7 +103,9 @@ class ConsumerStreamRest:
         authorization_url, state = oauth2.authorization_url(
             "https://accounts.google.com/o/oauth2/auth",
             access_type="offline",
-            prompt="select_account",
+            # prompt="select_account",
+            # access_type="online",
+            # prompt="select_account",
         )
         print(
             f"Please visit this URL to authorize PittGoogleConsumer:\n\n{authorization_url}\n"
@@ -189,7 +191,17 @@ class ConsumerStreamRest:
         and return the dict if the alert passes the filter, else return None.
         """
         # unpack and run the callback
-        msgs = response.json()["receivedMessages"]
+        try:
+            msgs = response.json()["receivedMessages"]
+        except KeyError:
+            msg = (
+                "No messages received. If you recently created the subscription, "
+                "it's possible that no messages have been published to the "
+                "topic since the subscription's creation."
+                "Try connecting to the heartbeat stream ztf-loop."
+            )
+            raise ValueError(msg)
+
         alerts, ack_ids = [], []
         for msg in msgs:
             alert_dict = b64avro_to_dict(msg["message"]["data"])

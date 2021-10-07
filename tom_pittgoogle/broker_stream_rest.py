@@ -9,8 +9,8 @@ See especially:
 .. autosummary::
    :nosignatures:
 
-   PittGoogleBrokerStreamRest.request_alerts
-   PittGoogleBrokerStreamRest.user_filter
+   BrokerStreamRest.request_alerts
+   BrokerStreamRest.user_filter
 """
 
 from django import forms
@@ -62,7 +62,7 @@ class FilterAlertsForm(GenericQueryForm):
     )
 
 
-class PittGoogleBrokerStreamRest(GenericBroker):
+class BrokerStreamRest(GenericBroker):
     """Pitt-Google broker to pull alerts from a stream via the REST API."""
 
     name = "Pitt-Google stream rest"

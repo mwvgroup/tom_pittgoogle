@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""TOM Toolkit broker to listen to a Pitt-Google Pub/Sub stream via the REST API.
+"""TOM Toolkit broker to query a BigQuery table via the Python API.
 
 Relies on `ConsumerDatabasePython` to manage the connections and work with data.
 
@@ -9,7 +9,7 @@ See especially:
 .. autosummary::
    :nosignatures:
 
-   PittGoogleBrokerDatabasePython.request_alerts
+   BrokerDatabasePython.request_alerts
 """
 
 from django import forms
@@ -20,7 +20,7 @@ from .consumer_database_python import ConsumerDatabasePython
 from .utils.templatetags.utility_tags import jd_to_readable_date
 
 
-TABLE_NAME = "alerts"
+TABLE_NAME = "ztf_alerts.alerts"
 # TODO: Connect the OAuth to a Django page,
 # and move the `CONSUMER` instantiation to a more appropriate place in the logic
 # so the end user can authenticate.
@@ -30,7 +30,7 @@ if 'BUILD_IN_RTD' not in os.environ:
 
 
 class FilterAlertsForm(GenericQueryForm):
-    """Basic form for filtering alerts.
+    """Basic form for filtering alerts; currently implemented in the SQL statement.
 
     Fields:
         objectId (``CharField``)
@@ -47,7 +47,7 @@ class FilterAlertsForm(GenericQueryForm):
     )
 
 
-class PittGoogleBrokerDatabasePython(GenericBroker):
+class BrokerDatabasePython(GenericBroker):
     """Pitt-Google broker to query alerts from the database via the Python client."""
 
     name = "Pitt-Google database python"
@@ -63,15 +63,13 @@ class PittGoogleBrokerDatabasePython(GenericBroker):
         """Query alerts using the user filter and unpack.
 
         The SQL statement implements the current user filter.
-        This means there is no need to call this function more than once,
-        or to use a `callback`.
 
         Returns:
             alerts (List[dict])
         """
         sql_stmnt, job_config = CONSUMER.create_sql_stmnt(parameters)
         query_job = CONSUMER.client.query(sql_stmnt, job_config=job_config)
-        alerts = CONSUMER.unpack_query(query_job, callback=None)  # List[dict]
+        alerts = CONSUMER.unpack_query(query_job)  # List[dict]
         return alerts
 
     def _clean_parameters(self, parameters):
