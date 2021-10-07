@@ -14,7 +14,6 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, f"{Path(__file__).parent.parent.parent}/tom_pittgoogle")
 
 # -- Project information -----------------------------------------------------
 
