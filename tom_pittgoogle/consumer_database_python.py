@@ -8,26 +8,18 @@ Typical workflow:
 
 .. code:: python
 
-    consumer = ConsumerStreamRest(subscription_name)
-
-    response = consumer.oauth2.post(
-        f"{consumer.subscription_url}:pull", data={"maxMessages": max_messages},
-    )
-
-    alerts = consumer.unpack_and_ack_messages(
-        response, lighten_alerts=True, callback=user_filter,
-    )  # List[dict]
+    # TODO: fill in
 
 See especially:
 
 .. autosummary::
    :nosignatures:
 
-   ConsumerStreamRest.authenticate
-   ConsumerStreamRest.get_create_subscription
-   ConsumerStreamRest.unpack_and_ack_messages
+   ConsumerDatabasePython.authenticate
+   ConsumerDatabasePython.create_sql_stmnt
+   ConsumerDatabasePython.unpack_query
 
-Pub/Sub REST API docs: https://cloud.google.com/pubsub/docs/reference/rest
+# BigQuery Python Client docs:
 """
 
 from django.conf import settings
