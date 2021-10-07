@@ -6,13 +6,34 @@
 Welcome to tom_pittgoogle's documentation!
 ==========================================
 
-This branch demonstrates integration with the TOM Toolkit three ways:
+This branch demonstrates Ptt-Google's integration with the TOM Toolkit three ways:
 
 .. toctree::
    :maxdepth: 1
 
    stream_rest
    database_python
+
+
+Workflow
+---------------
+
+.. code:: python
+
+    from consumer_stream_rest import ConsumerStreamRest
+
+    consumer = ConsumerStreamRest(subscription_name)
+
+    # TODO: make this better
+
+    response = consumer.oauth2.post(
+        f"{consumer.subscription_url}:pull", data={"maxMessages": max_messages},
+    )
+
+    alerts = consumer.unpack_and_ack_messages(
+        response, lighten_alerts=True, callback=user_filter,
+    )  # List[dict]
+
 
 How to use
 ----------------
@@ -24,7 +45,15 @@ How to use
 
 .. code:: python
 
-    # TODO: fill in
+    GOOGLE_CLOUD_PROJECT = "pitt-broker-user-project"  # user's project
+    PITTGOOGLE_OAUTH_CLIENT_ID = os.getenv("PITTGOOGLE_OAUTH_CLIENT_ID")
+    PITTGOOGLE_OAUTH_CLIENT_SECRET = os.getenv("PITTGOOGLE_OAUTH_CLIENT_SECRET")
+
+    TOM_ALERT_CLASSES = [
+    # ...
+    'tom_pittgoogle.broker_stream_python.BrokerStreamPython',
+    ]
+
 
 3.  Run `makemigrations`, etc. and authenticate yourself.
 
