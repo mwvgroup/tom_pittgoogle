@@ -62,15 +62,17 @@ class ConsumerDatabasePython:
 
     def __init__(self, table_name):
         """Authenticate user; create a client, the table path and check connection."""
+        user_project = settings.GOOGLE_CLOUD_PROJECT
+
         self.authenticate()
         self.credentials = credentials_from_session(self.oauth2)
         self.client = bigquery.Client(
-            project=settings.GOOGLE_CLOUD_PROJECT, credentials=self.credentials
+            project=user_project, credentials=self.credentials
         )
 
         # logger
         log_client = gc_logging.Client(
-            project=settings.GOOGLE_CLOUD_PROJECT, credentials=self.credentials
+            project=user_project, credentials=self.credentials
         )
         self.logger = log_client.logger(table_name)
 
@@ -80,7 +82,7 @@ class ConsumerDatabasePython:
         self._get_table()
 
         # for the TOM `GenericAlert`. this won't be very helpful without instructions.
-        self.query_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{settings.GOOGLE_CLOUD_PROJECT}/queries"
+        self.query_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{user_project}/queries"
 
     def authenticate(self):
         """Guide user through authentication; create `OAuth2Session` for HTTP requests.
