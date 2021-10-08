@@ -3,76 +3,79 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to tom_pittgoogle's documentation!
-==========================================
+Pitt-Google integration with TOM Toolkit
+=====================================================
 
-This branch demonstrates Ptt-Google's integration with the TOM Toolkit three ways:
+This repo contains 3 proof-of-concept implementations of a TOM Toolkit ``GenericBroker``
+class which fetch alerts from Pitt-Google.
+
+Contact Troy Raen with questions or for authentication access
+(Slack @troyraen, or troy.raen@pitt.edu).
+
+.. list-table:: 3 methods
+    :class: tight-table
+    :widths: 20 15 20 45
+    :header-rows: 1
+
+    * - Method
+      - Connects to
+      - Via
+      - Comments
+
+    * - `StreamRest`
+      - Pub/Sub streams
+      - REST API
+      - Closest to "standard" implementation using HTTP requests.
+        Uses batch-style message pulls.
+
+    * - `StreamPython`
+      - Pub/Sub streams
+      - Python client
+      - **Recommended** for listening to a full night's stream. Uses a streaming pull.
+
+    * - `DatabasePython`
+      - BigQuery database
+      - Python client
+      -
+
+Each method relies on 2 classes, a `Broker` and a `Consumer`:
+
+.. list-table:: 2 classes for each method
+    :class: tight-table
+    :widths: 40 60
+    :header-rows: 1
+
+    * - `Broker`
+      - `Consumer`
+
+    * - - Fetches alerts from Pitt-Google using a `Consumer`
+      - - Handles the database/stream connections and unpacks the returned data.
+
+    * - - Base class: ``tom_alerts.alerts.GenericBroker``
+      - - Python methods use Google's client APIs
+          (`Pub/Sub <https://googleapis.dev/python/pubsub/latest/index.html>`__,
+          `BigQuery <https://googleapis.dev/python/bigquery/latest/index.html>`__)
+        - REST method uses a ``requests_oauthlib.OAuth2Session`` object for HTTP
+          requests
+
+Here we use `Broker` and `Consumer` generically to refer to any of the specific
+implementations, which have names like ``BrokerStreamRest``.
+
 
 .. toctree::
+   :hidden:
    :maxdepth: 1
+   :caption: Overview
+
+   Basics<self>
+   workflow
+   integrate_tom
+   auth
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: API
 
    stream_rest
    database_python
-
-
-Workflow
----------------
-
-.. code:: python
-
-    from consumer_stream_rest import ConsumerStreamRest
-
-    consumer = ConsumerStreamRest(subscription_name)
-
-    # TODO: make this better
-
-    response = consumer.oauth2.post(
-        f"{consumer.subscription_url}:pull", data={"maxMessages": max_messages},
-    )
-
-    alerts = consumer.unpack_and_ack_messages(
-        response, lighten_alerts=True, callback=user_filter,
-    )  # List[dict]
-
-
-How to use
-----------------
-
-1.  Run a TOM using the
-    [TOM Toolkit](https://tom-toolkit.readthedocs.io/en/stable/)
-
-2.  Add the following to your TOM's `settings.py`
-
-.. code:: python
-
-    GOOGLE_CLOUD_PROJECT = "pitt-broker-user-project"  # user's project
-    PITTGOOGLE_OAUTH_CLIENT_ID = os.getenv("PITTGOOGLE_OAUTH_CLIENT_ID")
-    PITTGOOGLE_OAUTH_CLIENT_SECRET = os.getenv("PITTGOOGLE_OAUTH_CLIENT_SECRET")
-
-    TOM_ALERT_CLASSES = [
-    # ...
-    'tom_pittgoogle.broker_stream_python.BrokerStreamPython',
-    ]
-
-
-3.  Run `makemigrations`, etc. and authenticate yourself.
-
-4.  Navigate to the "Alerts" page on your TOM and query Pitt-Google
-    using one of the three broker options.
-
-Authentication
-----------------
-
-Uses OAuth 2.0.
-
-The user will need to visit a URL and authorize `PittGoogleConsumer` to make
-API calls on their behalf.
-
-The user must have a Google account that is authorized make API calls
-through the project defined by the `GOOGLE_CLOUD_PROJECT` variable in the
-Django `settings.py` file. Any project can be used.
-
-Additional requirement because this is still in dev: The OAuth is restricted
-to users registered with Pitt-Google, so contact us.
-
-TODO: Integrate this with Django. For now, the user interacts via command line.

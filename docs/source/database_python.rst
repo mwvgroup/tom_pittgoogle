@@ -1,14 +1,18 @@
-BigQuery tables via Python
+DatabasePython
 ------------------------------------
 
-Broker
-~~~~~~~~~~~~~~~~
+.. contents::
+   :local:
+   :depth: 1
+
+BrokerDatabasePython
+~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: tom_pittgoogle.broker_database_python
    :members:
 
-Consumer
-~~~~~~~~~~~~~~~~
+ConsumerDatabasePython
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: tom_pittgoogle.consumer_database_python
    :members:

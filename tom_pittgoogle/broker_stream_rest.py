@@ -43,7 +43,7 @@ class FilterAlertsForm(GenericQueryForm):
     """
 
     max_results = forms.IntegerField(
-        required=True, initial=10, min_value=1
+        required=True, initial=100, min_value=1
     )
     classtar_threshold = forms.FloatField(
         required=False,
@@ -65,7 +65,7 @@ class FilterAlertsForm(GenericQueryForm):
 class BrokerStreamRest(GenericBroker):
     """Pitt-Google broker to pull alerts from a stream via the REST API."""
 
-    name = "Pitt-Google stream rest"
+    name = "Pitt-Google StreamRest"
     form = FilterAlertsForm
 
     def fetch_alerts(self, parameters):
@@ -103,14 +103,14 @@ class BrokerStreamRest(GenericBroker):
     def user_filter(alert_dict, parameters):
         """Apply the filter indicated by the form's parameters.
 
-        Used as the `callback` to `CONSUMER.unpack_and_ack_messages`.
+        Used as the `callback` to `BrokerStreamRest.unpack_and_ack_messages`.
 
         Args:
             `alert_dict`: Single alert, ZTF packet data as a dictionary.
                           The schema depends on the value of `lighten_alerts` passed to
-                          `CONSUMER.unpack_and_ack_messages`.
+                          `BrokerStreamRest.unpack_and_ack_messages`.
                           If `lighten_alerts=False` it is the original ZTF alert schema
-                          (https://zwickytransientfacility.github.io/ztf-avro-alert/schema.html)
+                          (https://zwickytransientfacility.github.io/ztf-avro-alert/schema.html).
                           If `lighten_alerts=True` the dict is flattened and extra
                           fields are dropped.
 
@@ -124,9 +124,9 @@ class BrokerStreamRest(GenericBroker):
             return alert_dict
 
         # run the filter
-        classtar_lt_thresh = alert_dict["classtar"] < parameters["classtar_threshold"]
-        if ((parameters["classtar_gt_lt"] == "lt") & classtar_lt_thresh) or (
-            (parameters["classtar_gt_lt"] == "gt") & ~classtar_lt_thresh
+        lt_threshold = alert_dict["classtar"] < parameters["classtar_threshold"]
+        if ((parameters["classtar_gt_lt"] == "lt") & lt_threshold) or (
+            (parameters["classtar_gt_lt"] == "gt") & ~lt_threshold
         ):
             return alert_dict
         else:

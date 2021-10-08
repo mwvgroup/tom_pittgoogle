@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 """Consumer class to manage BigQuery connections via Python client, and work with data.
-change
+
 Used by `BrokerDatabasePython`.
 
 Typical workflow:
@@ -22,7 +22,7 @@ See especially:
    ConsumerDatabasePython.create_sql_stmnt
    ConsumerDatabasePython.unpack_query
 
-# BigQuery Python Client docs:
+BigQuery Python Client docs: https://googleapis.dev/python/bigquery/latest/index.html
 """
 
 from django.conf import settings
@@ -114,15 +114,18 @@ class ConsumerDatabasePython:
         authorization_url, state = oauth2.authorization_url(
             authorization_base_url,
             access_type="offline",
-            # prompt="select_account",
             # access_type="online",
-            # prompt="auto",
+            # prompt="select_account",
         )
-        print(
-            f"Please visit this URL to authorize PittGoogleConsumer:\n\n{authorization_url}\n"
-        )
+        print((
+            "Please visit this URL to authenticate yourself and authorize "
+            "PittGoogleConsumer to make API calls on your behalf:"
+            f"\n\n{authorization_url}\n"
+        ))
         authorization_response = input(
-            "Enter the full URL of the page you are redirected to after authorization:\n"
+            "After authorization, you should be directed to the Pitt-Google Alert "
+            "Broker home page. Enter the full URL of that page (it should start with "
+            "https://ardent-cycling-243415.appspot.com/):\n"
         )
 
         # complete the authentication

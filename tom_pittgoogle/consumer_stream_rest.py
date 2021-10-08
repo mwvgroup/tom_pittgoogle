@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 """Consumer class to manage Pub/Sub connections via REST, and work with message data.
 
-Used by `PittGoogleBrokerStreamRest`.
+Used by `BrokerStreamRest`.
 
 Typical workflow:
 
@@ -103,15 +103,18 @@ class ConsumerStreamRest:
         authorization_url, state = oauth2.authorization_url(
             "https://accounts.google.com/o/oauth2/auth",
             access_type="offline",
-            # prompt="select_account",
             # access_type="online",
             # prompt="select_account",
         )
-        print(
-            f"Please visit this URL to authorize PittGoogleConsumer:\n\n{authorization_url}\n"
-        )
+        print((
+            "Please visit this URL to authenticate yourself and authorize "
+            "PittGoogleConsumer to make API calls on your behalf:"
+            f"\n\n{authorization_url}\n"
+        ))
         authorization_response = input(
-            "Enter the full URL of the page you are redirected to after authorization:\n"
+            "After authorization, you should be directed to the Pitt-Google Alert "
+            "Broker home page. Enter the full URL of that page (it should start with "
+            "https://ardent-cycling-243415.appspot.com/):\n"
         )
 
         # complete the authentication

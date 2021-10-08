@@ -43,14 +43,14 @@ class FilterAlertsForm(GenericQueryForm):
     objectId = forms.CharField(required=False)
     candid = forms.IntegerField(required=False)
     max_results = forms.IntegerField(
-        required=True, initial=10, min_value=1
+        required=True, initial=100, min_value=1
     )
 
 
 class BrokerDatabasePython(GenericBroker):
     """Pitt-Google broker to query alerts from the database via the Python client."""
 
-    name = "Pitt-Google database python"
+    name = "Pitt-Google DatabasePython"
     form = FilterAlertsForm
 
     def fetch_alerts(self, parameters):
