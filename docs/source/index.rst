@@ -10,7 +10,7 @@ This repo contains 3 proof-of-concept implementations of a TOM Toolkit ``Generic
 class which fetch alerts from Pitt-Google.
 
 Contact Troy Raen with questions or for authentication access
-(Slack @troyraen, or troy.raen@pitt.edu).
+(Slack @troyraen on LSSTC or ztf-broker-ops, or email troy.raen@pitt.edu).
 
 Basic Overview
 ----------------

@@ -5,4 +5,4 @@
 
 Please read the docs at [https://tom-pittgoogle.readthedocs.io/en/latest/](https://tom-pittgoogle.readthedocs.io/en/latest/).
 
-Contact Troy Raen with questions or for authentication access (Slack @troyraen, or troy.raen@pitt.edu).
+Contact Troy Raen with questions or for authentication access (Slack @troyraen on LSSTC or ztf-broker-ops, or email troy.raen@pitt.edu).
