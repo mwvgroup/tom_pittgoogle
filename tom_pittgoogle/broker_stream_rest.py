@@ -14,20 +14,10 @@ See especially:
 """
 
 from django import forms
-import os
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
 from .consumer_stream_rest import ConsumerStreamRest
 from .utils.templatetags.utility_tags import jd_to_readable_date
-
-
-SUBSCRIPTION_NAME = "ztf-loop"  # heartbeat stream. ~1 ZTF alert/second.
-# TODO: Connect the OAuth to a Django page,
-# and move the `CONSUMER` instantiation to a more appropriate place in the logic
-# so the end user can authenticate.
-# Currently, the developer must authticate when launching the server.
-if 'BUILD_IN_RTD' not in os.environ:
-    CONSUMER = ConsumerStreamRest(SUBSCRIPTION_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
@@ -35,30 +25,41 @@ class FilterAlertsForm(GenericQueryForm):
 
     Fields:
 
-        max_results (``IntegerField``)
+        subscription_name (``CharField``)
 
         classtar_threshold (``FloatField``)
 
         classtar_gt_lt (``ChoiceField``)
+
+        max_results (``IntegerField``)
     """
 
-    max_results = forms.IntegerField(
-        required=True, initial=100, min_value=1
+    subscription_name = forms.CharField(
+        required=True,
+        initial='ztf-loop',
+        help_text=(
+            "The subscription will be created if it doesn't already exist "
+            "in the user's project. The ztf-loop stream is recommended for testing. "
+            "It is a 'heartbeat' stream with ~1 alert/sec."
+        )
     )
     classtar_threshold = forms.FloatField(
         required=False,
-        initial=0.5,
         min_value=0,
         max_value=1,
         help_text="Star/Galaxy score threshold",
     )
-    classtar_gt_lt_choices = [("lt", "less than"), ("gt", "greater than or equal")]
     classtar_gt_lt = forms.ChoiceField(
         required=True,
-        choices=classtar_gt_lt_choices,
+        choices=[("lt", "less than"), ("gt", "greater than or equal")],
         initial="lt",
         widget=forms.RadioSelect,
         label="",
+    )
+    max_results = forms.IntegerField(
+        required=False,
+        initial=100,
+        min_value=1,
     )
 
 
@@ -71,6 +72,8 @@ class BrokerStreamRest(GenericBroker):
     def fetch_alerts(self, parameters):
         """Entry point to pull and filter alerts."""
         clean_params = self._clean_parameters(parameters)
+
+        self.consumer = ConsumerStreamRest(clean_params['subscription_name'])
 
         alerts, i, max_tries = [], 0, 5  # avoid trying forever
         while (len(alerts) < parameters['max_results']) & (i < max_tries):
@@ -86,12 +89,12 @@ class BrokerStreamRest(GenericBroker):
         Returns:
             alerts (List[dict])
         """
-        response = CONSUMER.oauth2.post(
-            f"{CONSUMER.subscription_url}:pull",
+        response = self.consumer.oauth2.post(
+            f"{self.consumer.subscription_url}:pull",
             data={"maxMessages": parameters["max_results"]},
         )
         response.raise_for_status()
-        alerts = CONSUMER.unpack_and_ack_messages(
+        alerts = self.consumer.unpack_and_ack_messages(
             response,
             lighten_alerts=True,
             callback=self.user_filter,
@@ -140,7 +143,7 @@ class BrokerStreamRest(GenericBroker):
         """Map the Pitt-Google alert to a TOM `GenericAlert`."""
         return GenericAlert(
             timestamp=jd_to_readable_date(alert["jd"]),
-            url=CONSUMER.subscription_url,
+            url=self.consumer.subscription_url,
             id=alert["candid"],
             name=alert["objectId"],
             ra=alert["ra"],

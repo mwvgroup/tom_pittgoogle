@@ -27,10 +27,22 @@ Requirements
 
 Authentication Workflow
 ------------------------
-The user will:
+
+Note: Currently this is a bit painful because the user must:
+
+-   re-authenticate every time a query is run.
+
+-   interact via the command line. When running a query from the TOM site's
+    "Query a Broker" page, the process will hang until the user follows the prompts on
+    the command line and completes the authentication. The site may temporarily
+    crash until this is completed.
+
+(TODO: integrate the OAuth with Django, and automatically refresh tokens)
+
+**Workflow** - The user will:
 
 1.  Visit a URL, which will be displayed on the command line when the `Consumer`
-    class is initialized. (TODO: integrate this with Django)
+    class is initialized (currently, when the `Broker`'s ``fetch_alerts`` is called).
 
 2.  Log in to their Google account. This authenticates their access to make API calls
     through the project.
@@ -42,6 +54,12 @@ The user will:
 4.  Respond to the prompt on the command line by entering the full URL of the webpage
     they are redirected to after completing the above.
 
-    -   The `Consumer` then instantiates an ``OAuth2Session``, which is used to either
-        make HTTP requests directly (REST method), or instantiate a credentials object
-        for the Python client.
+**What happens next?** - The `Consumer`:
+
+-   Completes the instantiation of an ``OAuth2Session``,
+    which is used to either make HTTP requests directly, or instantiate a credentials
+    object for the Python client.
+
+-   Instantiates a ``Client`` object to make API calls with (Python methods only).
+
+-   Checks that it can successfully connect to the requested resource.

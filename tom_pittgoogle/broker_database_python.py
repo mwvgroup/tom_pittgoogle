@@ -13,20 +13,10 @@ See especially:
 """
 
 from django import forms
-import os
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
 from .consumer_database_python import ConsumerDatabasePython
 from .utils.templatetags.utility_tags import jd_to_readable_date
-
-
-TABLE_NAME = "ztf_alerts.alerts"
-# TODO: Connect the OAuth to a Django page,
-# and move the `CONSUMER` instantiation to a more appropriate place in the logic
-# so the end user can authenticate.
-# Currently, the developer must authticate when launching the server.
-if 'BUILD_IN_RTD' not in os.environ:
-    CONSUMER = ConsumerDatabasePython(TABLE_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
@@ -56,7 +46,12 @@ class BrokerDatabasePython(GenericBroker):
     def fetch_alerts(self, parameters):
         """Entry point to query and filter alerts."""
         clean_params = self._clean_parameters(parameters)
+
+        table_name = "ztf_alerts.alerts"
+        self.consumer = ConsumerDatabasePython(table_name)
+
         alerts = self.request_alerts(clean_params)
+
         return iter(alerts)
 
     def request_alerts(self, parameters):
@@ -67,9 +62,9 @@ class BrokerDatabasePython(GenericBroker):
         Returns:
             alerts (List[dict])
         """
-        sql_stmnt, job_config = CONSUMER.create_sql_stmnt(parameters)
-        query_job = CONSUMER.client.query(sql_stmnt, job_config=job_config)
-        alerts = CONSUMER.unpack_query(query_job)  # List[dict]
+        sql_stmnt, job_config = self.consumer.create_sql_stmnt(parameters)
+        query_job = self.consumer.client.query(sql_stmnt, job_config=job_config)
+        alerts = self.consumer.unpack_query(query_job)  # List[dict]
         return alerts
 
     def _clean_parameters(self, parameters):
@@ -87,7 +82,7 @@ class BrokerDatabasePython(GenericBroker):
         """Map the Pitt-Google alert to a TOM `GenericAlert`."""
         return GenericAlert(
             timestamp=jd_to_readable_date(alert["jd"]),
-            url=CONSUMER.query_url,
+            url=self.consumer.query_url,
             id=alert["candid"],
             name=alert["objectId"],
             ra=alert["ra"],

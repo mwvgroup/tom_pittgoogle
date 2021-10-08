@@ -5,7 +5,7 @@ This assumes that you know how to run a TOM server/site using the
 `TOM Toolkit <https://tom-toolkit.readthedocs.io/en/stable/>`__
 
 #.  Clone this repo (``git clone https://github.com/mwvgroup/tom_pittgoogle.git``)
-    and put the root directory on your path.
+    and put the directory on your path.
 
 #.  Add Pitt-Google to your TOM. Follow the TOM Toolkit instructions in the section
     `Using Our New Alert Broker <https://tom-toolkit.readthedocs.io/en/stable/brokers/create_broker.html#using-our-new-alert-broker>`__.
@@ -17,10 +17,9 @@ This assumes that you know how to run a TOM server/site using the
 
             .. code::
 
-                'tom_pittgoogle.broker_database_python.BrokerDatabasePython',
-                'tom_pittgoogle.broker_stream_python.BrokerStreamPython',
                 'tom_pittgoogle.broker_stream_rest.BrokerStreamRest',
-
+                'tom_pittgoogle.broker_stream_python.BrokerStreamPython',
+                'tom_pittgoogle.broker_database_python.BrokerDatabasePython',
 
         -   Add these additional settings:
 
