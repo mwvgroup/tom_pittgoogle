@@ -83,6 +83,7 @@ def avro_to_dict(bytes_data):
         return alert_dicts[0]
 
 
+@register.filter
 def b64avro_to_dict(bytes_data):
     """Convert base64 encoded, Avro serialized bytes data to a dict.
 

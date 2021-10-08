@@ -1,0 +1,24 @@
+fastavro
+google-cloud-bigquery
+google-cloud-logging
+google-cloud-pubsub
+google-auth-oauthlib
+requests_oauthlib
+tomtoolkit
+
+# Django
+django
+django-bootstrap4
+django-crispy-forms
+django-environ
+django-extensions
+django-guardian
+django-recaptcha
+
+# RTD
+docutils<0.17  # render lists properly
+myst-parser
+sphinx
+sphinx-copybutton
+sphinx_autodoc_typehints
+sphinx_rtd_theme

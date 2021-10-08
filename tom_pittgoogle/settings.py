@@ -9,6 +9,9 @@ https://docs.djangoproject.com/en/2.1/topics/settings/
 
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.1/ref/settings/
+
+WARNING: This file is only here for the Read The Docs build.
+         It should not be used to run the TOM server.
 """
 import logging.config
 import os
@@ -17,8 +20,12 @@ import tempfile
 
 # Pitt-Google auth
 GOOGLE_CLOUD_PROJECT = "my-pgb-project-3"  # user's project
-PITTGOOGLE_OAUTH_CLIENT_ID = os.getenv("PITTGOOGLE_OAUTH_CLIENT_ID")
-PITTGOOGLE_OAUTH_CLIENT_SECRET = os.getenv("PITTGOOGLE_OAUTH_CLIENT_SECRET")
+# PITTGOOGLE_OAUTH_CLIENT_ID = os.getenv("PITTGOOGLE_OAUTH_CLIENT_ID")
+# PITTGOOGLE_OAUTH_CLIENT_SECRET = os.getenv("PITTGOOGLE_OAUTH_CLIENT_SECRET")
+# print(PITTGOOGLE_OAUTH_CLIENT_ID)
+# print(PITTGOOGLE_OAUTH_CLIENT_SECRET)
+# GOOGLE_APPLICATION_CREDENTIALS = "/Users/troyraen/Documents/broker/repo/GCP_auth_key-mypgb-raentroy.json"
+# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,7 +35,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/2.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '4iq)g7qh+1+0g03$!3kx0@*=v!#2ioi@^-f=-^ix6l(z7c_6d8'
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -80,7 +87,7 @@ MIDDLEWARE = [
     'tom_common.middleware.AuthStrategyMiddleware',
 ]
 
-ROOT_URLCONF = 'tommy.urls'
+ROOT_URLCONF = 'tom_pittgoogle.urls'
 
 TEMPLATES = [
     {
@@ -100,7 +107,7 @@ TEMPLATES = [
 
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
 
-WSGI_APPLICATION = 'tommy.wsgi.application'
+WSGI_APPLICATION = 'tom_pittgoogle.wsgi.application'
 
 
 # Database
@@ -256,10 +263,9 @@ TOM_ALERT_CLASSES = [
     'tom_alerts.brokers.scout.ScoutBroker',
     'tom_alerts.brokers.tns.TNSBroker',
     'tom_alerts.brokers.fink.FinkBroker',
-    'tommy.tommy.MyBroker',
-    'tom_pittgoogle.broker_database_python.PittGoogleBroker',
-    'tom_pittgoogle.broker_stream_python.PittGoogleBroker',
-    'tom_pittgoogle.broker_stream_rest.PittGoogleBroker',
+    'tom_pittgoogle.broker_database_python.BrokerDatabasePython',
+    # 'tom_pittgoogle.broker_stream_python.PittGoogleBroker',
+    'tom_pittgoogle.broker_stream_rest.BrokerStreamRest',
 ]
 
 BROKERS = {
