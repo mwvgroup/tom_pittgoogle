@@ -11,6 +11,7 @@ See especially:
 
    BrokerStreamRest.request_alerts
    BrokerStreamRest.user_filter
+
 """
 
 from django import forms
@@ -64,7 +65,10 @@ class FilterAlertsForm(GenericQueryForm):
 
 
 class BrokerStreamRest(GenericBroker):
-    """Pitt-Google broker to pull alerts from a stream via the REST API."""
+    """Pitt-Google broker class to pull alerts from a stream via the REST API.
+
+    Base class: ``tom_alerts.alerts.GenericBroker``
+    """
 
     name = "Pitt-Google StreamRest"
     form = FilterAlertsForm

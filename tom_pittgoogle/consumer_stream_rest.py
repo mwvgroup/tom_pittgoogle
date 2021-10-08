@@ -2,9 +2,11 @@
 # -*- coding: UTF-8 -*-
 """Consumer class to manage Pub/Sub connections via REST, and work with message data.
 
-Used by `BrokerStreamRest`.
+Pub/Sub REST API docs: https://cloud.google.com/pubsub/docs/reference/rest
 
-Typical workflow:
+Used by `BrokerStreamRest`, but can be called independently.
+
+Basic workflow:
 
 .. code:: python
 
@@ -27,7 +29,6 @@ See especially:
    ConsumerStreamRest.get_create_subscription
    ConsumerStreamRest.unpack_and_ack_messages
 
-Pub/Sub REST API docs: https://cloud.google.com/pubsub/docs/reference/rest
 """
 
 from django.conf import settings
@@ -45,10 +46,10 @@ class ConsumerStreamRest:
 
     Initialization does the following:
 
-        Authenticate the user. Create an `OAuth2Session` object for the user/broker
-        to make HTTP requests with.
+        - Authenticate the user. Create an `OAuth2Session` object for the user/broker
+          to make HTTP requests with.
 
-        Make sure the subscription exists and we can connect. Create it, if needed.
+        - Make sure the subscription exists and we can connect. Create it, if needed.
     """
 
     def __init__(self, subscription_name):
@@ -77,12 +78,13 @@ class ConsumerStreamRest:
     def authenticate(self):
         """Guide user through authentication; create `OAuth2Session` for HTTP requests.
 
-        The user will need to visit a URL and authorize `PittGoogleConsumer` to make
-        API calls on their behalf.
+        The user will need to visit a URL, authenticate themselves, and authorize
+        `PittGoogleConsumer` to make API calls on their behalf.
 
         The user must have a Google account that is authorized make API calls
         through the project defined by the `GOOGLE_CLOUD_PROJECT` variable in the
-        Django `settings.py` file. Any project can be used.
+        Django `settings.py` file. Any project can be used, as long as the user has
+        access.
 
         Additional requirement because this is still in dev: The OAuth is restricted
         to users registered with Pitt-Google, so contact us.
@@ -246,12 +248,12 @@ class ConsumerStreamRest:
     def delete_subscription(self):
         """Delete the subscription.
 
-        This is provided for user's convenience, but it is not necessary and is not
+        This is provided for the user's convenience, but it is not necessary and is not
         automatically called.
 
-            Storage of unacknowledged Pub/Sub messages does not result in fees.
+            - Storage of unacknowledged Pub/Sub messages does not result in fees.
 
-            Unused subscriptions automatically expire; default is 31 days.
+            - Unused subscriptions automatically expire; default is 31 days.
         """
         response = self.oauth2.delete(self.subscription_url)
         if response.status_code == 200:

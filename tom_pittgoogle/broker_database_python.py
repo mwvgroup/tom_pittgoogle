@@ -38,7 +38,10 @@ class FilterAlertsForm(GenericQueryForm):
 
 
 class BrokerDatabasePython(GenericBroker):
-    """Pitt-Google broker to query alerts from the database via the Python client."""
+    """Pitt-Google broker to query alerts from the database via the Python client.
+
+    Base class: ``tom_alerts.alerts.GenericBroker``
+    """
 
     name = "Pitt-Google DatabasePython"
     form = FilterAlertsForm
@@ -57,7 +60,7 @@ class BrokerDatabasePython(GenericBroker):
     def request_alerts(self, parameters):
         """Query alerts using the user filter and unpack.
 
-        The SQL statement implements the current user filter.
+        The SQL statement returned by the `Consumer` implements the current user filter.
 
         Returns:
             alerts (List[dict])

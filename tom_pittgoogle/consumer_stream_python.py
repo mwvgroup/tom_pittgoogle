@@ -1,8 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Consumer class to pull or query alerts from Pitt-Google.
+"""Consumer class to manage Pub/Sub connections via a Python client, and work with data.
 
 Pub/Sub Python Client docs: https://googleapis.dev/python/pubsub/latest/index.html
+
+Used by `BrokerStreamPython`, but can be called independently.
+
+Use-case: Save alerts to a database
+
+    This demo assumes that the real use-case is to save alerts to a database
+    rather than view them through a TOM site.
+    Therefore, the `Consumer` currently saves the alerts in real time,
+    and then simply returns a list of alerts after all messages are processed.
+    That list is then coerced into an iterator by the `Broker`.
+    If the user really cares about the `Broker`'s iterator, `stream_alerts` can
+    be tweaked to yield the alerts in real time.
+
+Basic workflow:
+
+.. code:: python
+
+    consumer = ConsumerStreamPython(subscription_name)
+
+    alert_dicts_list = consumer.stream_alerts(
+        lighten_alerts=True,
+        user_filter=user_filter,
+        parameters=parameters,
+    )
+    # alerts are processed and saved in real time. the list is returned for convenience.
+
+See especially:
+
+.. autosummary::
+   :nosignatures:
+
+   ConsumerStreamPython.authenticate
+   ConsumerStreamPython.get_create_subscription
+   ConsumerStreamPython.stream_alerts
+   ConsumerStreamPython.callback
+   ConsumerStreamPython.save_alert
+
 """
 
 # from concurrent.futures.thread import ThreadPoolExecutor
@@ -23,11 +60,34 @@ PITTGOOGLE_PROJECT_ID = "ardent-cycling-243415"
 
 
 class ConsumerStreamPython:
-    """Consumer class to pull or query alerts from Pitt-Google, and manipulate them."""
+    """Consumer class to manage Pub/Sub connections and work with messages.
+
+    Initialization does the following:
+
+        - Authenticate the user via OAuth 2.0.
+
+        - Create a `google.cloud.pubsub_v1.SubscriberClient` object.
+
+        - Create a `queue.Queue` object to communicate with the background thread
+          running the streaming pull.
+
+        - Make sure the subscription exists and we can connect. Create it, if needed.
+
+    To view logs, visit: https://console.cloud.google.com/logs
+
+        - Make sure you are logged in, and your project is selected in the dropdown
+          at the top.
+
+        - Click the "Log name" dropdown and select the subscription name you
+          instantiate this consumer with.
+
+    TODO: Give the user a standard logger.
+    """
 
     def __init__(self, subscription_name):
-        """Open a subscriber client. If the subscription doesn't exist, create it."""
+        """Authenticate user; create client; set subscription path; check connection."""
         user_project = settings.GOOGLE_CLOUD_PROJECT
+        self.database_list = []  # list of dicts. fake database for demo.
 
         self.authenticate()
         self.credentials = credentials_from_session(self.oauth2)
@@ -48,21 +108,21 @@ class ConsumerStreamPython:
         self.topic_path = f"projects/{PITTGOOGLE_PROJECT_ID}/topics/{subscription_name}"
         self.get_create_subscription()
 
-        self.database_list = []  # list of dicts. fake database for demo.
         self.queue = queue.Queue()  # queue for communication between threads
 
         # for the TOM `GenericAlert`. this won't be very helpful without instructions.
         self.pull_url = "https://pubsub.googleapis.com/v1/{subscription_path}"
 
     def authenticate(self):
-        """Guide user through authentication; create `OAuth2Session` for HTTP requests.
+        """Guide user through authentication; create `OAuth2Session` for credentials.
 
-        The user will need to visit a URL and authorize `PittGoogleConsumer` to make
-        API calls on their behalf.
+        The user will need to visit a URL, authenticate themselves, and authorize
+        `PittGoogleConsumer` to make API calls on their behalf.
 
         The user must have a Google account that is authorized make API calls
         through the project defined by the `GOOGLE_CLOUD_PROJECT` variable in the
-        Django `settings.py` file. Any project can be used.
+        Django `settings.py` file. Any project can be used, as long as the user has
+        access.
 
         Additional requirement because this is still in dev: The OAuth is restricted
         to users registered with Pitt-Google, so contact us.
@@ -106,19 +166,29 @@ class ConsumerStreamPython:
         )
         self.oauth2 = oauth2
 
-    def stream_alerts(
-        self,
-        lighten_alerts=False,
-        user_filter=None,
-        parameters=None,
-    ):
-        """.
+    def stream_alerts(self, lighten_alerts=False, user_filter=None, parameters=None):
+        """Execute a streaming pull and process alerts through the `callback``.
+
+        The streaming pull happens in a background thread. A `queue.Queue` is used
+        to communicate between threads and enforce the stopping condition(s).
+
         Args:
-            parameters: Must include parameters used in `user_filter`. May also include:
-                        max_results:
-                        timeout:
-                        max_backlog:
-        Higher numbers may increase throughput. Lower numbers decrease  Alerts that are never processed are _not_ dropped from the subscription.
+            lighten_alerts (bool): If True, drop extra fields and flatten the alert dict
+
+            user_filter (Callable): Used by `callback` to filter alerts before saving.
+                                    It should accept a single alert (ZTF packet data)
+                                    as a dictionary. The schema depends on the value of
+                                    `lighten_alerts`.
+                                    If `lighten_alerts=False` it is the original ZTF
+                                    alert schema
+                                    (https://zwickytransientfacility.github.io/ztf-avro-alert/schema.html).
+                                    If `lighten_alerts=True` the dict is flattened and
+                                    extra fields are dropped.
+                                    It should return the alert dict if it passes the
+                                    filter, else ``None``.
+
+            parameters (dict): User's parameters. Must include the parameters
+                               defined in the `Broker`'s `FilterAlertsForm`.
         """
         # callback doesn't currently accept kwargs. set attributes instead.
         self.user_filter = user_filter
@@ -169,7 +239,10 @@ class ConsumerStreamPython:
         self.streaming_pull_future.result()  # Block until the shutdown is complete.
 
     def callback(self, message):
-        """Unpack messages in `response`. Run `callback` if present."""
+        """Process a single alert; run user filter; save alert; acknowledge Pub/Sub msg.
+
+        Used as the callback for the streaming pull.
+        """
         params = self.parameters
 
         alert_dict = avro_to_dict(message.data)
@@ -193,22 +266,22 @@ class ConsumerStreamPython:
         # communicate with the main thread
         self.queue.put(num_saved)
         if params['max_results'] is not None:
-            # block until main thread acknowledges so we don't pull too many messages
+            # block until main thread acknowledges so we don't ack msgs that get lost
             self.queue.join()  # single background thread => one-in-one-out
 
         message.ack()
 
     def save_alert(self, alert):
-        """."""
-        self.database_list.append(alert)
+        """Save the alert to a database."""
+        self.database_list.append(alert)  # fake database for demo
 
     def _extract_metadata(self, message):
         # TOM wants to serialize this and has trouble with the dates.
-        # just make everything strings for now
+        # Just make everything strings for now.
         return {
             "message_id": message.message_id,
             "publish_time": str(message.publish_time),
-            # attributes includes the originating 'kafka.timestamp'
+            # attributes includes the originating 'kafka.timestamp' from ZTF
             "attributes": {k: str(v) for k, v in message.attributes.items()},
         }
 
@@ -224,51 +297,55 @@ class ConsumerStreamPython:
         return alert_lite
 
     def get_create_subscription(self):
-        """Create the subscription if needed.
+        """Make sure the subscription exists and we can connect.
 
-        1.  Check whether a subscription exists in the user's GCP project.
+        If the subscription doesn't exist, try to create one (in the user's project)
+        that is attached to a topic of the same name in the Pitt-Google project.
 
-        2.  If it doesn't, try to create a subscription in the user's project that is
-            attached to a topic of the same name in the Pitt-Google project.
+        Note that messages published before the subscription is created are not
+        available.
         """
         try:
             # check if subscription exists
             sub = self.client.get_subscription(subscription=self.subscription_path)
 
         except NotFound:
-            # subscription does not exist. try to create it.
-            try:
-                self.client.create_subscription(
-                    name=self.subscription_path, topic=self.topic_path
-                )
-            except NotFound:
-                # suitable topic does not exist in the Pitt-Google project
-                raise ValueError(
-                    (
-                        f"A subscription named {self.subscription_name} does not exist"
-                        "in the Google Cloud Platform project "
-                        f"{settings.GOOGLE_CLOUD_PROJECT}, "
-                        "and one cannot be automatically create because Pitt-Google "
-                        "does not publish a public topic with the same name."
-                    )
-                )
-            else:
-                self._log_and_print(f"Created subscription: {self.subscription_path}")
+            self._create_subscription()
 
         else:
             self.topic_path = sub.topic
             print(f"Subscription exists: {self.subscription_path}")
             print(f"Connected to topic: {self.topic_path}")
 
+    def _create_subscription(self):
+        """Try to create the subscription."""
+        try:
+            self.client.create_subscription(
+                name=self.subscription_path, topic=self.topic_path
+            )
+        except NotFound:
+            # suitable topic does not exist in the Pitt-Google project
+            raise ValueError(
+                (
+                    f"A subscription named {self.subscription_name} does not exist"
+                    "in the Google Cloud Platform project "
+                    f"{settings.GOOGLE_CLOUD_PROJECT}, "
+                    "and one cannot be automatically create because Pitt-Google "
+                    "does not publish a public topic with the same name."
+                )
+            )
+        else:
+            self._log_and_print(f"Created subscription: {self.subscription_path}")
+
     def delete_subscription(self):
         """Delete the subscription.
 
-        This is provided for user's convenience, but it is not necessary and is not
+        This is provided for the user's convenience, but it is not necessary and is not
         automatically called.
 
-            Storage of unacknowledged Pub/Sub messages does not result in fees.
+            - Storage of unacknowledged Pub/Sub messages does not result in fees.
 
-            Unused subscriptions automatically expire; default is 31 days.
+            - Unused subscriptions automatically expire; default is 31 days.
         """
         try:
             self.client.delete_subscription(subscription=self.subscription_path)

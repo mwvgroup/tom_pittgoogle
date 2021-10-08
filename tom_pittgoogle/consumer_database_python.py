@@ -2,16 +2,20 @@
 # -*- coding: UTF-8 -*-
 """Consumer class to manage BigQuery connections via Python client, and work with data.
 
-Used by `BrokerDatabasePython`.
+BigQuery Python Client docs: https://googleapis.dev/python/bigquery/latest/index.html
 
-Typical workflow:
+Used by `BrokerDatabasePython`, but can be called independently.
+
+Basic workflow:
 
 .. code:: python
 
     consumer = ConsumerDatabasePython(table_name)
+
     sql_stmnt, job_config = consumer.create_sql_stmnt(parameters)
     query_job = consumer.client.query(sql_stmnt, job_config=job_config)
-    alerts = consumer.unpack_query(query_job, callback=None)  # List[dict]
+
+    alerts = consumer.unpack_query(query_job)  # List[dict]
 
 See especially:
 
@@ -22,16 +26,13 @@ See especially:
    ConsumerDatabasePython.create_sql_stmnt
    ConsumerDatabasePython.unpack_query
 
-BigQuery Python Client docs: https://googleapis.dev/python/bigquery/latest/index.html
 """
 
 from django.conf import settings
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
 from google.cloud import logging as gc_logging
-# from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.helpers import credentials_from_session
-# import json
 from requests_oauthlib import OAuth2Session
 
 
@@ -43,19 +44,20 @@ class ConsumerDatabasePython:
 
     Initialization does the following:
 
-        Authenticate the user via OAuth 2.0.
+        - Authenticate the user via OAuth 2.0.
 
-        Create a `google.cloud.bigquery.Client` object for the user/broker
-        to query database with.
+        - Create a `google.cloud.bigquery.Client` object for the user/broker
+          to query database with.
 
-        Check that the table exists and we can connect.
+        - Check that the table exists and we can connect.
 
     To view logs, visit: https://console.cloud.google.com/logs
-        Make sure you are logged in, and your project is selected in the dropdown
-        at the top.
 
-        Click the "Log name" dropdown and select the table name you instantiate this
-        consumer with.
+        - Make sure you are logged in, and your project is selected in the dropdown
+          at the top.
+
+        - Click the "Log name" dropdown and select the table name you instantiate this
+          consumer with.
 
     TODO: Give the user a standard logger.
     """
@@ -85,14 +87,15 @@ class ConsumerDatabasePython:
         self.query_url = f"https://bigquery.googleapis.com/bigquery/v2/projects/{user_project}/queries"
 
     def authenticate(self):
-        """Guide user through authentication; create `OAuth2Session` for HTTP requests.
+        """Guide user through authentication; create `OAuth2Session` for credentials.
 
-        The user will need to visit a URL and authorize `PittGoogleConsumer` to make
-        API calls on their behalf.
+        The user will need to visit a URL, authenticate themselves, and authorize
+        `PittGoogleConsumer` to make API calls on their behalf.
 
         The user must have a Google account that is authorized make API calls
         through the project defined by the `GOOGLE_CLOUD_PROJECT` variable in the
-        Django `settings.py` file. Any project can be used.
+        Django `settings.py` file. Any project can be used, as long as the user has
+        access.
 
         Additional requirement because this is still in dev: The OAuth is restricted
         to users registered with Pitt-Google, so contact us.
@@ -149,7 +152,7 @@ class ConsumerDatabasePython:
             self._log_and_print(f"Successfully connected to {self.table_path}")
 
     def create_sql_stmnt(self, parameters):
-        """Create the SQL statement and the query parameters job config."""
+        """Create the SQL statement and a job config with the user's `parameters`."""
         query_parameters = []
 
         select = """
@@ -200,7 +203,12 @@ class ConsumerDatabasePython:
     def unpack_query(
         self, query_job, callback=None, **kwargs
     ):
-        """Unpack messages in `response`. Run `callback` if present."""
+        """Unpack alerts from `query_job`; run `callback` if present.
+
+        A basic filter is implemented directly in the SQL statement produced by
+        `create_sql_stmnt`. More complex filters could be implemented here via a
+        `callback` function.
+        """
         alerts = []
         for row in query_job.result():
             alert_dict = dict(row)

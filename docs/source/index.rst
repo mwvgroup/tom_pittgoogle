@@ -12,12 +12,15 @@ class which fetch alerts from Pitt-Google.
 Contact Troy Raen with questions or for authentication access
 (Slack @troyraen, or troy.raen@pitt.edu).
 
-.. list-table:: 3 methods
+Basic Overview
+----------------
+
+.. list-table:: TOM Broker 3 ways
     :class: tight-table
     :widths: 20 15 20 45
     :header-rows: 1
 
-    * - Method
+    * - Implementation
       - Connects to
       - Via
       - Comments
@@ -31,16 +34,17 @@ Contact Troy Raen with questions or for authentication access
     * - `StreamPython`
       - Pub/Sub streams
       - Python client
-      - **Recommended** for listening to a full night's stream. Uses a streaming pull.
+      - **Recommended** for listening to a full night's stream. Uses a streaming pull
+        in a background thread.
 
     * - `DatabasePython`
       - BigQuery database
       - Python client
       -
 
-Each method relies on 2 classes, a `Broker` and a `Consumer`:
+Each implementation relies on 2 classes, a `Broker` and a `Consumer`:
 
-.. list-table:: 2 classes for each method
+.. list-table:: 2 classes for each implementation
     :class: tight-table
     :widths: 40 60
     :header-rows: 1
@@ -49,7 +53,7 @@ Each method relies on 2 classes, a `Broker` and a `Consumer`:
       - `Consumer`
 
     * - - Fetches alerts from Pitt-Google using a `Consumer`
-      - - Handles the database/stream connections and unpacks the returned data.
+      - - Handles the stream/database connections and unpacks the returned data.
 
     * - - Base class: ``tom_alerts.alerts.GenericBroker``
       - - Python methods use Google's client APIs
@@ -78,4 +82,5 @@ implementations, which have names like ``BrokerStreamRest``.
    :caption: API
 
    stream_rest
+   stream_python
    database_python

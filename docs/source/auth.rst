@@ -33,33 +33,33 @@ Note: Currently this is a bit painful because the user must:
 -   re-authenticate every time a query is run.
 
 -   interact via the command line. When running a query from the TOM site's
-    "Query a Broker" page, the process will hang until the user follows the prompts on
-    the command line and completes the authentication. The site may temporarily
+    "Query a Broker" page, **the process will hang until the user follows the prompts on
+    the command line and completes the authentication**. The site may temporarily
     crash until this is completed.
 
 (TODO: integrate the OAuth with Django, and automatically refresh tokens)
 
 **Workflow** - The user will:
 
-1.  Visit a URL, which will be displayed on the command line when the `Consumer`
+#.  Visit a URL, which will be displayed on the command line when the `Consumer`
     class is initialized (currently, when the `Broker`'s ``fetch_alerts`` is called).
 
-2.  Log in to their Google account. This authenticates their access to make API calls
+#.  Log in to their Google account. This authenticates their access to make API calls
     through the project.
 
-3.  Authorize this `PittGoogleConsumer` app/module to make API calls on their behalf.
+#.  Authorize this `PittGoogleConsumer` app/module to make API calls on their behalf.
     This only needs to be done once for each API access "scope"
     (Pub/Sub, BigQuery, and Logging).
 
-4.  Respond to the prompt on the command line by entering the full URL of the webpage
+#.  Respond to the prompt on the command line by entering the full URL of the webpage
     they are redirected to after completing the above.
 
 **What happens next?** - The `Consumer`:
 
--   Completes the instantiation of an ``OAuth2Session``,
+#.  Completes the instantiation of an ``OAuth2Session``,
     which is used to either make HTTP requests directly, or instantiate a credentials
     object for the Python client.
 
--   Instantiates a ``Client`` object to make API calls with (Python methods only).
+#.  Instantiates a ``Client`` object to make API calls with (Python methods only).
 
--   Checks that it can successfully connect to the requested resource.
+#.  Checks that it can successfully connect to the requested resource.

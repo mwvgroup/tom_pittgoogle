@@ -1,30 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Pitt-Google broker module for TOM Toolkit.
+"""TOM Toolkit broker to listen to a Pitt-Google Pub/Sub stream via the Python client.
 
-Connects to the user's Pub/Sub subscription via the Python client.
+Relies on `ConsumerStreamPython` to manage the connections and work with data.
 
-API Docs: https://googleapis.dev/python/pubsub/latest/subscriber/index.html
+See especially:
 
 .. autosummary::
    :nosignatures:
 
-   tom_pittgoogle.broker_stream_rest.FilterAlertsForm
-   tom_pittgoogle.broker_stream_rest.BrokerStreamPython
-"""
-# import os
+   BrokerStreamPython.fetch_alerts
+   BrokerStreamPython.user_filter
 
+"""
 from django import forms
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
 
 from .consumer_stream_python import ConsumerStreamPython
 from .utils.templatetags.utility_tags import jd_to_readable_date
-
-
-# SUBSCRIPTION_NAME = "ztf-loop"
-# # Create the subscription if needed, and make sure we can connect to it.
-# if 'BUILD_IN_RTD' not in os.environ:
-#     CONSUMER = ConsumerStreamPython(SUBSCRIPTION_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
@@ -113,13 +106,28 @@ class FilterAlertsForm(GenericQueryForm):
 
 
 class BrokerStreamPython(GenericBroker):
-    """Pitt-Google broker interface to pull alerts from Pub/Sub via the Python client."""
+    """Pitt-Google broker interface to pull alerts from Pub/Sub via the Python client.
+
+    Base class: ``tom_alerts.alerts.GenericBroker``
+    """
 
     name = "Pitt-Google StreamPython"
     form = FilterAlertsForm
 
     def fetch_alerts(self, parameters):
-        """Pull or query alerts, unpack, apply the user filter, return an iterator."""
+        """Entry point to pull and filter alerts.
+
+        Pull alerts using a Python client, unpack, apply user filter.
+
+        This demo assumes that the real use-case is to save alerts to a database
+        rather than view them through a TOM site.
+        Therefore, the `Consumer` currently saves the alerts in real time,
+        and then simply returns a list of alerts after all messages are processed.
+        That list is then coerced into an iterator here.
+        If the user really cares about the iterator,
+        `ConsumerStreamPython.stream_alerts` can be tweaked to yield the alerts in
+        real time.
+        """
         clean_params = self._clean_parameters(parameters)
 
         self.consumer = ConsumerStreamPython(clean_params['subscription_name'])
@@ -129,6 +137,7 @@ class BrokerStreamPython(GenericBroker):
             user_filter=self.user_filter,
             parameters=clean_params,
         )
+
         return iter(alert_dicts_list)
 
     def _clean_parameters(self, parameters):
