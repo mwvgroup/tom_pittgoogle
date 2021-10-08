@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-"""Consumer class to manage Pub/Sub connections via a Python client, and work with data.
+"""Consumer class to pull Pub/Sub messages via a Python client, and work with data.
 
 Pub/Sub Python Client docs: https://googleapis.dev/python/pubsub/latest/index.html
 
@@ -8,8 +8,8 @@ Used by `BrokerStreamPython`, but can be called independently.
 
 Use-case: Save alerts to a database
 
-    This demo assumes that the real use-case is to save alerts to a database
-    rather than view them through a TOM site.
+    The demo for this implementation assumes that the real use-case is to save alerts
+    to a database rather than view them through a TOM site.
     Therefore, the `Consumer` currently saves the alerts in real time,
     and then simply returns a list of alerts after all messages are processed.
     That list is then coerced into an iterator by the `Broker`.
@@ -187,8 +187,11 @@ class ConsumerStreamPython:
                                     It should return the alert dict if it passes the
                                     filter, else None.
 
-            parameters (dict): User's parameters. Must include the parameters
-                               defined in the `Broker`'s `FilterAlertsForm`.
+            parameters (dict): User's parameters. Should include the parameters
+                               defined in `BrokerStreamPython`'s `FilterAlertsForm`.
+                               There must be at least one stopping condition
+                               (`max_results` or `timeout`), else the streaming pull
+                               will run forever.
         """
         # callback doesn't currently accept kwargs. set attributes instead.
         self.user_filter = user_filter
