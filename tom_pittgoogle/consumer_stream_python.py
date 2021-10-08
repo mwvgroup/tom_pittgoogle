@@ -167,7 +167,7 @@ class ConsumerStreamPython:
         self.oauth2 = oauth2
 
     def stream_alerts(self, lighten_alerts=False, user_filter=None, parameters=None):
-        """Execute a streaming pull and process alerts through the `callback``.
+        """Execute a streaming pull and process alerts through the `callback`.
 
         The streaming pull happens in a background thread. A `queue.Queue` is used
         to communicate between threads and enforce the stopping condition(s).
@@ -185,7 +185,7 @@ class ConsumerStreamPython:
                                     If `lighten_alerts=True` the dict is flattened and
                                     extra fields are dropped.
                                     It should return the alert dict if it passes the
-                                    filter, else ``None``.
+                                    filter, else None.
 
             parameters (dict): User's parameters. Must include the parameters
                                defined in the `Broker`'s `FilterAlertsForm`.

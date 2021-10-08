@@ -9,6 +9,9 @@ https://docs.djangoproject.com/en/2.1/topics/settings/
 
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.1/ref/settings/
+
+WARNING: This file is only here for the Read The Docs build.
+         It should not be used to run the TOM server.
 """
 import logging.config
 import os
