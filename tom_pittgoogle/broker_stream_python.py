@@ -12,7 +12,7 @@ API Docs: https://googleapis.dev/python/pubsub/latest/subscriber/index.html
    tom_pittgoogle.broker_stream_rest.FilterAlertsForm
    tom_pittgoogle.broker_stream_rest.BrokerStreamPython
 """
-import os
+# import os
 
 from django import forms
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
@@ -21,16 +21,18 @@ from .consumer_stream_python import ConsumerStreamPython
 from .utils.templatetags.utility_tags import jd_to_readable_date
 
 
-SUBSCRIPTION_NAME = "ztf-loop"
-# Create the subscription if needed, and make sure we can connect to it.
-if 'BUILD_IN_RTD' not in os.environ:
-    CONSUMER = ConsumerStreamPython(SUBSCRIPTION_NAME)
+# SUBSCRIPTION_NAME = "ztf-loop"
+# # Create the subscription if needed, and make sure we can connect to it.
+# if 'BUILD_IN_RTD' not in os.environ:
+#     CONSUMER = ConsumerStreamPython(SUBSCRIPTION_NAME)
 
 
 class FilterAlertsForm(GenericQueryForm):
     """Basic form for filtering alerts.
 
     Fields:
+
+        subscription_name (``CharField``)
 
         classtar_threshold (``FloatField``)
 
@@ -41,19 +43,28 @@ class FilterAlertsForm(GenericQueryForm):
         timeout (``IntegerField``)
 
         max_backlog (``IntegerField``)
+
+        save_metadata (``ChoiceField``)
     """
 
+    subscription_name = forms.CharField(
+        required=True,
+        initial='ztf-loop',
+        help_text=(
+            "The subscription will be created if it doesn't already exist "
+            "in the user's project. The ztf-loop stream is recommended for testing. "
+            "It is a 'heartbeat' stream with ~1 alert/sec."
+        )
+    )
     classtar_threshold = forms.FloatField(
         required=False,
-        initial=0.5,
         min_value=0,
         max_value=1,
         help_text="Star/Galaxy score threshold",
     )
-    classtar_gt_lt_choices = [("lt", "less than"), ("gt", "greater than or equal")]
     classtar_gt_lt = forms.ChoiceField(
         required=True,
-        choices=classtar_gt_lt_choices,
+        choices=[("lt", "less than"), ("gt", "greater than or equal")],
         initial="lt",
         widget=forms.RadioSelect,
         label="",
@@ -62,19 +73,42 @@ class FilterAlertsForm(GenericQueryForm):
         required=False,
         initial=100,
         min_value=1,
-        help_text="Maximum number of alerts to pull and process before stopping the streaming pull."
+        help_text=(
+            "Maximum number of alerts to pull and process before stopping the "
+            "streaming pull. Recommended for testing only."
+        )
     )
     timeout = forms.IntegerField(
         required=False,
         initial=30,
         min_value=1,
-        help_text="Maximum amount of time to wait for a new alert before stopping the streaming pull."
+        help_text=(
+            "Maximum amount of time in seconds to wait for a new alert before stopping "
+            "the streaming pull. Recommended for testing to avoid waiting for "
+            "max number of results forever. "
+            "Recommended for production, possibly in combination "
+            "with a time of day-based stopping condition."
+        )
     )
     max_backlog = forms.IntegerField(
         required=False,
         initial=1000,
         min_value=1,
-        help_text="Maximum number of pulled but unprocessed alerts before pausing the streaming pull."
+        help_text=(
+            "Maximum number of pulled but unprocessed alerts before pausing the "
+            "streaming pull. Google's default is 1000, which is often fine. "
+            "However, you may want to reduce this if you set 'Max results' to a "
+            "small number and you want to avoid pulling down a bunch of extra alerts. "
+            "Note that alerts do not 'leave' the subscription until they are "
+            "successfully processed by the callback; this setting does not affect that."
+        )
+    )
+    save_metadata = forms.ChoiceField(
+        required=True,
+        choices=[("yes", "yes"), ("no", "no")],
+        initial="yes",
+        widget=forms.RadioSelect,
+        help_text="Whether to save message metadata in addition to the alert packet.",
     )
 
 
@@ -88,7 +122,9 @@ class BrokerStreamPython(GenericBroker):
         """Pull or query alerts, unpack, apply the user filter, return an iterator."""
         clean_params = self._clean_parameters(parameters)
 
-        alert_dicts_list = CONSUMER.stream_alerts(
+        self.consumer = ConsumerStreamPython(clean_params['subscription_name'])
+
+        alert_dicts_list = self.consumer.stream_alerts(
             lighten_alerts=True,
             user_filter=self.user_filter,
             parameters=clean_params,
@@ -106,7 +142,7 @@ class BrokerStreamPython(GenericBroker):
             ))
 
         if clean_params['max_backlog'] is None:
-            clean_params['max_backlog'] = 1000
+            clean_params['max_backlog'] = 1000  # keep the google default of 1000
 
         return clean_params
 
@@ -147,7 +183,7 @@ class BrokerStreamPython(GenericBroker):
         """Map the Pitt-Google alert to a TOM `GenericAlert`."""
         return GenericAlert(
             timestamp=jd_to_readable_date(alert["jd"]),
-            url=CONSUMER.pull_url,
+            url=self.consumer.pull_url,
             id=alert["candid"],
             name=alert["objectId"],
             ra=alert["ra"],

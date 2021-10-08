@@ -180,14 +180,18 @@ class ConsumerStreamPython:
         if self.user_filter is not None:
             alert_dict = self.user_filter(alert_dict, params)
 
-        # save alert and communicate with main thread
+        # save alert
         if alert_dict is not None:
+            if params['save_metadata'] == "yes":
+                # nest inside the alert so we don't break the broker
+                alert_dict['metadata'] = self._extract_metadata(message)
             self.save_alert(alert_dict)
             num_saved = 1
         else:
             num_saved = 0
 
-        self.queue.put(num_saved)  # tell main thread whether a message was saved
+        # communicate with the main thread
+        self.queue.put(num_saved)
         if params['max_results'] is not None:
             # block until main thread acknowledges so we don't pull too many messages
             self.queue.join()  # single background thread => one-in-one-out
@@ -197,6 +201,16 @@ class ConsumerStreamPython:
     def save_alert(self, alert):
         """."""
         self.database_list.append(alert)
+
+    def _extract_metadata(self, message):
+        # TOM wants to serialize this and has trouble with the dates.
+        # just make everything strings for now
+        return {
+            "message_id": message.message_id,
+            "publish_time": str(message.publish_time),
+            # attributes includes the originating 'kafka.timestamp'
+            "attributes": {k: str(v) for k, v in message.attributes.items()},
+        }
 
     def _lighten_alert(self, alert_dict):
         keep_fields = {
