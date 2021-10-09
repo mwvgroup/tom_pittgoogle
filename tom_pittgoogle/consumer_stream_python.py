@@ -358,18 +358,5 @@ class ConsumerStreamPython:
             self._log_and_print(f'Deleted subscription: {self.subscription_path}')
 
     def _log_and_print(self, msg, severity="INFO"):
-        # request = {
-        #     'logName': self.log_name,
-        #     'resource': {
-        #         'type': 'pubsub_subscription',
-        #         'labels': {
-        #             'project_id': settings.GOOGLE_CLOUD_PROJECT,
-        #             'subscription_id': self.subscription_name
-        #         },
-        #     },
-        #     'entries': [{'textPayload': msg, 'severity': severity}],
-        # }
-        # response = self.oauth.post(self.logging_url, json=json.dumps(request))
-        # print(response.content)
-        # response.raise_for_status()
+        self.logger.log_text(msg, severity=severity)
         print(msg)
