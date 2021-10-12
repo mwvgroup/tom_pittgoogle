@@ -26,7 +26,7 @@ See especially:
    :nosignatures:
 
    ConsumerStreamRest.authenticate
-   ConsumerStreamRest.get_create_subscription
+   ConsumerStreamRest.touch_subscription
    ConsumerStreamRest.unpack_and_ack_messages
 
 """
@@ -72,8 +72,8 @@ class ConsumerStreamRest:
         self.subscription_url = (
             f"https://pubsub.googleapis.com/v1/{self.subscription_path}"
         )
-        self.topic_path = ""  # for user info only. set in get_create_subscription()
-        self.get_create_subscription()
+        self.topic_path = ""  # for user info only. set in touch_subscription()
+        self.touch_subscription()
 
     def authenticate(self):
         """Guide user through authentication; create `OAuth2Session` for HTTP requests.
@@ -127,7 +127,7 @@ class ConsumerStreamRest:
         )
         self.oauth2 = oauth2
 
-    def get_create_subscription(self):
+    def touch_subscription(self):
         """Make sure the subscription exists and we can connect.
 
         If the subscription doesn't exist, try to create one (in the user's project)

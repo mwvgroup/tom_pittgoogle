@@ -35,7 +35,7 @@ See especially:
    :nosignatures:
 
    ConsumerStreamPython.authenticate
-   ConsumerStreamPython.get_create_subscription
+   ConsumerStreamPython.touch_subscription
    ConsumerStreamPython.stream_alerts
    ConsumerStreamPython.callback
    ConsumerStreamPython.save_alert
@@ -106,7 +106,7 @@ class ConsumerStreamPython:
         # If the subscription already exists but is connected to a different topic,
         # the user will be notified and this topic_path will be updated for consistency.
         self.topic_path = f"projects/{PITTGOOGLE_PROJECT_ID}/topics/{subscription_name}"
-        self.get_create_subscription()
+        self.touch_subscription()
 
         self.queue = queue.Queue()  # queue for communication between threads
 
@@ -299,7 +299,7 @@ class ConsumerStreamPython:
         )
         return alert_lite
 
-    def get_create_subscription(self):
+    def touch_subscription(self):
         """Make sure the subscription exists and we can connect.
 
         If the subscription doesn't exist, try to create one (in the user's project)
