@@ -224,19 +224,24 @@ class ConsumerStreamPython:
             # await_callbacks_on_shutdown=True,
         )
 
-        # Use the queue to count saved messages and
-        # stop when we hit a max_messages or timeout stopping condition.
-        num_saved = 0
-        while True:
-            try:
-                num_saved += self.queue.get(block=True, timeout=parameters['timeout'])
-            except Empty:
-                break
-            else:
-                self.queue.task_done()
-                if parameters['max_results'] & num_saved >= parameters['max_results']:
+        try:
+            # Use the queue to count saved messages and
+            # stop when we hit a max_messages or timeout stopping condition.
+            num_saved = 0
+            while True:
+                try:
+                    num_saved += self.queue.get(block=True, timeout=parameters['timeout'])
+                except Empty:
                     break
-        self._stop()
+                else:
+                    self.queue.task_done()
+                    if parameters['max_results'] & num_saved >= parameters['max_results']:
+                        break
+            self._stop()
+
+        except KeyboardInterrupt:
+            self._stop()
+            raise
 
         self._log_and_print(f"Saved {num_saved} messages from {self.subscription_path}")
 
