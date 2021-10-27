@@ -5,6 +5,9 @@ StreamPython
    :local:
    :depth: 1
 
+.. note::
+   The Pitt-Google broker uses Pub/Sub to publish live streams, rather than Apache Kafka. See :doc:`pubsub` for a basic overview.
+
 BrokerStreamPython
 ~~~~~~~~~~~~~~~~~~~
 
