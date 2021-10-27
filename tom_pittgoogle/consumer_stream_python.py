@@ -90,15 +90,8 @@ class ConsumerStreamPython:
         user_project = settings.GOOGLE_CLOUD_PROJECT
         self.database_list = []  # list of dicts. fake database for demo.
 
-        # Authenticate. Try service account credentials first. Fall back to OAuth.
-        try:
-            self.credentials, project = auth.load_credentials_from_file(
-                settings.GOOGLE_APPLICATION_CREDENTIALS
-            )
-            assert project == user_project  # TODO: handle this better
-        except auth.exceptions.DefaultCredentialsError:
-            self.authenticate_with_oauth()
-            self.credentials = credentials_from_session(self.oauth2)
+        # authenticate the user
+        self.get_credentials(user_project)
 
         # instantiate client
         self.client = pubsub_v1.SubscriberClient(credentials=self.credentials)
@@ -122,6 +115,21 @@ class ConsumerStreamPython:
 
         # for the TOM `GenericAlert`. this won't be very helpful without instructions.
         self.pull_url = "https://pubsub.googleapis.com/v1/{subscription_path}"
+
+    def get_credentials(self, user_project):
+        """Create user credentials object from service account credentials or an OAuth.
+
+        Try service account credentials first. Fall back to OAuth.
+        """
+        try:
+            self.credentials, project = auth.load_credentials_from_file(
+                settings.GOOGLE_APPLICATION_CREDENTIALS
+            )
+            assert project == user_project  # TODO: handle this better
+
+        except auth.exceptions.DefaultCredentialsError:
+            self.authenticate_with_oauth()
+            self.credentials = credentials_from_session(self.oauth2)
 
     def authenticate_with_oauth(self):
         """Guide user through authentication; create `OAuth2Session` for credentials.
