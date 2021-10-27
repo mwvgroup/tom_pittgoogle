@@ -47,6 +47,7 @@ from django.conf import settings
 from google.api_core.exceptions import NotFound
 from google.cloud import pubsub_v1
 # from google.cloud.pubsub_v1.subscriber.scheduler import ThreadScheduler
+from google import auth
 from google.cloud import logging as gc_logging
 from google_auth_oauthlib.helpers import credentials_from_session
 from requests_oauthlib import OAuth2Session
@@ -89,8 +90,17 @@ class ConsumerStreamPython:
         user_project = settings.GOOGLE_CLOUD_PROJECT
         self.database_list = []  # list of dicts. fake database for demo.
 
-        self.authenticate()
-        self.credentials = credentials_from_session(self.oauth2)
+        # Authenticate. Try service account credentials first. Fall back to OAuth.
+        try:
+            self.credentials, project = auth.load_credentials_from_file(
+                settings.GOOGLE_APPLICATION_CREDENTIALS
+            )
+            assert project == user_project  # TODO: handle this better
+        except auth.exceptions.DefaultCredentialsError:
+            self.authenticate_with_oauth()
+            self.credentials = credentials_from_session(self.oauth2)
+
+        # instantiate client
         self.client = pubsub_v1.SubscriberClient(credentials=self.credentials)
 
         # logger
@@ -113,7 +123,7 @@ class ConsumerStreamPython:
         # for the TOM `GenericAlert`. this won't be very helpful without instructions.
         self.pull_url = "https://pubsub.googleapis.com/v1/{subscription_path}"
 
-    def authenticate(self):
+    def authenticate_with_oauth(self):
         """Guide user through authentication; create `OAuth2Session` for credentials.
 
         The user will need to visit a URL, authenticate themselves, and authorize
