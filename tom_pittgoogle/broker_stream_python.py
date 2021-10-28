@@ -126,13 +126,15 @@ class BrokerStreamPython(GenericBroker):
 
         alert_dicts_list = self.consumer.stream_alerts(
             user_filter=self.user_filter,
-            parameters=clean_params,
+            **clean_params,
         )
 
         return iter(alert_dicts_list)
 
     def _clean_parameters(self, parameters):
         clean_params = dict(parameters)
+
+        clean_params.setdefault("classtar_threshold", None)
 
         # there must be at least one stopping condition
         if (clean_params['max_results'] is None) & (clean_params['timeout'] is None):
@@ -147,7 +149,7 @@ class BrokerStreamPython(GenericBroker):
         return clean_params
 
     @staticmethod
-    def user_filter(alert_dict, parameters):
+    def user_filter(alert_dict, **parameters):
         """Apply the filter indicated by the form's parameters.
 
         Used as the `callback` to `BrokerStreamPython.unpack_and_ack_messages`.
