@@ -15,6 +15,7 @@ See especially:
 """
 from django import forms
 from tom_alerts.alerts import GenericQueryForm, GenericAlert, GenericBroker
+from tom_targets.models import Target
 
 from .consumer_stream_python import ConsumerStreamPython
 from .utils.templatetags.utility_tags import jd_to_readable_date
@@ -36,8 +37,6 @@ class FilterAlertsForm(GenericQueryForm):
         timeout (``IntegerField``)
 
         max_backlog (``IntegerField``)
-
-        save_metadata (``ChoiceField``)
     """
 
     subscription_name = forms.CharField(
@@ -96,13 +95,6 @@ class FilterAlertsForm(GenericQueryForm):
             "successfully processed by the callback; this setting does not affect that."
         )
     )
-    save_metadata = forms.ChoiceField(
-        required=True,
-        choices=[("yes", "yes"), ("no", "no")],
-        initial="yes",
-        widget=forms.RadioSelect,
-        help_text="Whether to save message metadata in addition to the alert packet.",
-    )
 
 
 class BrokerStreamPython(GenericBroker):
@@ -133,7 +125,6 @@ class BrokerStreamPython(GenericBroker):
         self.consumer = ConsumerStreamPython(clean_params['subscription_name'])
 
         alert_dicts_list = self.consumer.stream_alerts(
-            lighten_alerts=True,
             user_filter=self.user_filter,
             parameters=clean_params,
         )
@@ -188,15 +179,37 @@ class BrokerStreamPython(GenericBroker):
         else:
             return None
 
-    def to_generic_alert(self, alert):
+    def to_generic_alert(self, alert_dict):
         """Map the Pitt-Google alert to a TOM `GenericAlert`."""
         return GenericAlert(
-            timestamp=jd_to_readable_date(alert["jd"]),
-            url=self.consumer.pull_url,
-            id=alert["candid"],
-            name=alert["objectId"],
-            ra=alert["ra"],
-            dec=alert["dec"],
-            mag=alert["magpsf"],
-            score=alert["classtar"],
+            timestamp=jd_to_readable_date(alert_dict["jd"]),
+            # url=self.consumer.pull_url,
+            # this is not a valid url
+            url="https://pubsub.googleapis.com/v1/{subscription_path}",
+            id=alert_dict["candid"],
+            name=alert_dict["objectId"],
+            ra=alert_dict["ra"],
+            dec=alert_dict["dec"],
+            mag=alert_dict["magpsf"],
+            score=alert_dict["classtar"],
         )
+
+    def to_target(self, alert_dict):
+        """Map the Pitt-Google alert to a TOM `Target`."""
+        return Target(
+            # identifier=alert_dict['candid'],
+            name=alert_dict['objectId'],
+            type='SIDEREAL',
+            # designation='MY ALERT',
+            ra=alert_dict['ra'],
+            dec=alert_dict['dec'],
+            # epoch=alert_dict['jd'],
+        )
+
+    # def get_or_create_target(self, alert_dict):
+    #     target, created = Target.objects.get_or_create(
+    #         name=alert_dict['objectId'],
+    #         type='SIDEREAL',
+    #         ra=alert_dict['ra'],
+    #         dec=alert_dict['dec'],
+    #     )

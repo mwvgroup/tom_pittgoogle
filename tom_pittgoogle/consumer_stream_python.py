@@ -23,9 +23,8 @@ Basic workflow:
     consumer = ConsumerStreamPython(subscription_name)
 
     alert_dicts_list = consumer.stream_alerts(
-        lighten_alerts=True,
         user_filter=user_filter,
-        parameters=parameters,
+        **kwargs,
     )
     # alerts are processed and saved in real time. the list is returned for convenience.
 
@@ -85,7 +84,7 @@ class ConsumerStreamPython:
     TODO: Give the user a standard logger.
     """
 
-    def __init__(self, subscription_name):
+    def __init__(self, subscription_name, ztf_fields=None):
         """Authenticate user; create client; set subscription path; check connection."""
         user_project = settings.GOOGLE_CLOUD_PROJECT
         self.database_list = []  # list of dicts. fake database for demo.
@@ -110,6 +109,8 @@ class ConsumerStreamPython:
         # the user will be notified and this topic_path will be updated for consistency.
         self.topic_path = f"projects/{PITTGOOGLE_PROJECT_ID}/topics/{subscription_name}"
         self.touch_subscription()
+
+        self._set_ztf_fields(ztf_fields)
 
         self.queue = queue.Queue()  # queue for communication between threads
 
@@ -184,39 +185,44 @@ class ConsumerStreamPython:
         )
         self.oauth2 = oauth2
 
-    def stream_alerts(self, lighten_alerts=False, user_filter=None, parameters=None):
+    def stream_alerts(
+        self, user_filter=None, user_callback=None, **kwargs
+    ):
         """Execute a streaming pull and process alerts through the `callback`.
 
         The streaming pull happens in a background thread. A `queue.Queue` is used
         to communicate between threads and enforce the stopping condition(s).
 
         Args:
-            lighten_alerts (bool): If True, drop extra fields and flatten the alert dict
-
-            user_filter (Callable): Used by `callback` to filter alerts before saving.
-                                    It should accept a single alert (ZTF packet data)
-                                    as a dictionary. The schema depends on the value of
-                                    `lighten_alerts`.
-                                    If `lighten_alerts=False` it is the original ZTF
-                                    alert schema
-                                    (https://zwickytransientfacility.github.io/ztf-avro-alert/schema.html).
-                                    If `lighten_alerts=True` the dict is flattened and
-                                    extra fields are dropped.
+            user_filter (Callable): Used by `callback` to filter alerts before
+                                    saving. It should accept a single alert as a
+                                    dictionary (flat dict with fields determined by
+                                    `ztf_fields` attribute).
                                     It should return the alert dict if it passes the
                                     filter, else None.
 
-            parameters (dict): User's parameters. Should include the parameters
-                               defined in `BrokerStreamPython`'s `FilterAlertsForm`.
-                               There must be at least one stopping condition
-                               (`max_results` or `timeout`), else the streaming pull
-                               will run forever.
+            user_callback (Callable): Used by `callback` to process alerts.
+                                      It should accept a single alert as a
+                                      dictionary (flat dict with fields determined by
+                                      `ztf_fields` attribute).
+                                      It should return True if the processing was
+                                      successful; else False.
+
+            kwargs (dict): User's parameters. Should include the parameters
+                           defined in `BrokerStreamPython`'s `FilterAlertsForm`.
+                           There must be at least one stopping condition
+                           (`max_results` or `timeout`), else the streaming pull
+                           will run forever.
         """
-        # callback doesn't currently accept kwargs. set attributes instead.
-        self.user_filter = user_filter
-        self.parameters = {**parameters, 'lighten_alerts': lighten_alerts}
+        # callback doesn't accept kwargs. set attribute instead.
+        self.callback_kwargs = {
+            "user_filter": user_filter,
+            "user_callback": user_callback,
+            **kwargs,
+        }
 
         # avoid pulling down a large number of alerts that don't get processed
-        flow_control = pubsub_v1.types.FlowControl(max_messages=parameters['max_backlog'])
+        flow_control = pubsub_v1.types.FlowControl(max_messages=kwargs['max_backlog'])
 
         # Google API has a thread scheduler that can run multiple background threads
         # and includes a queue, but I (Troy) haven't gotten it working yet.
@@ -238,12 +244,12 @@ class ConsumerStreamPython:
             num_saved = 0
             while True:
                 try:
-                    num_saved += self.queue.get(block=True, timeout=parameters['timeout'])
+                    num_saved += self.queue.get(block=True, timeout=kwargs['timeout'])
                 except Empty:
                     break
                 else:
                     self.queue.task_done()
-                    if parameters['max_results'] & num_saved >= parameters['max_results']:
+                    if kwargs['max_results'] & num_saved >= kwargs['max_results']:
                         break
             self._stop()
 
@@ -256,11 +262,7 @@ class ConsumerStreamPython:
         return self.database_list
 
     def _stop(self):
-        """Shutdown the streaming pull in the background thread gracefully.
-
-        Implemented as a separate function so the developer can quickly shut it down
-        if things get out of control during dev. :)
-        """
+        """Shutdown the streaming pull in the background thread gracefully."""
         self.streaming_pull_future.cancel()  # Trigger the shutdown.
         self.streaming_pull_future.result()  # Block until the shutdown is complete.
 
@@ -269,56 +271,93 @@ class ConsumerStreamPython:
 
         Used as the callback for the streaming pull.
         """
-        params = self.parameters
+        kwargs = self.callback_kwargs
 
-        alert_dict = avro_to_dict(message.data)
+        # unpack
+        try:
+            alert_dict = self._unpack(message)
+        except Exception as e:
+            self._log_and_print(f"Error unpacking message: {e}", severity="DEBUG")
+            message.nack()  # nack so message does not leave subscription
+            return
 
-        if params['lighten_alerts']:
-            alert_dict = self._lighten_alert(alert_dict)
+        # run user filter
+        if kwargs["user_filter"] is not None:
+            try:
+                alert_dict = kwargs["user_filter"](alert_dict, **kwargs)
+            except Exception as e:
+                self._log_and_print(f"Error running user_filter: {e}", severity="DEBUG")
+                message.nack()
+                return
 
-        if self.user_filter is not None:
-            alert_dict = self.user_filter(alert_dict, params)
+        # run user callback
+        if kwargs["user_callback"] is not None:
+            try:
+                success = kwargs["user_callback"](alert_dict)  # bool
+            except Exception as e:
+                success = False
+                msg = f"Error running user_callback: {e}"
+            else:
+                if not success:
+                    msg = "user_callback reported it was unsuccessful."
+            finally:
+                if not success:
+                    self._log_and_print(msg, severity="DEBUG")
+                    message.nack()
+                    return
 
-        # save alert
         if alert_dict is not None:
-            if params['save_metadata'] == "yes":
-                # nest inside the alert so we don't break the broker
-                alert_dict['metadata'] = self._extract_metadata(message)
             self.save_alert(alert_dict)
-            num_saved = 1
-        else:
-            num_saved = 0
 
-        # communicate with the main thread
-        self.queue.put(num_saved)
-        if params['max_results'] is not None:
-            # block until main thread acknowledges so we don't ack msgs that get lost
-            self.queue.join()  # single background thread => one-in-one-out
+            # communicate with the main thread
+            self.queue.put(1)  # 1 alert successfully processed
+            if kwargs['max_results'] is not None:
+                # block til main thread acknowledges so we don't ack msgs that get lost
+                self.queue.join()  # single background thread => one-in-one-out
+
+        else:
+            self._log_and_print("alert_dict is None")
 
         message.ack()
+
+    def _unpack(self, message):
+        alert_dict = avro_to_dict(message.data)
+        alert_dict = self._lighten_alert(alert_dict)  # flat dict with self.ztf_fields
+        alert_dict.update(self._extract_metadata(message))
+        return alert_dict
 
     def save_alert(self, alert):
         """Save the alert to a database."""
         self.database_list.append(alert)  # fake database for demo
 
+    def _set_ztf_fields(self, fields=None):
+        """Fields to save in the `_unpack` method."""
+        if fields is not None:
+            self.ztf_fields = fields
+        else:
+            self.ztf_fields = {
+                "top-level": ["objectId", "candid", ],
+                "candidate": ["jd", "ra", "dec", "magpsf", "classtar", ],
+                "metadata": ["message_id", "publish_time", "kafka.timestamp"]
+            }
+
     def _extract_metadata(self, message):
         # TOM wants to serialize this and has trouble with the dates.
         # Just make everything strings for now.
-        return {
+        # attributes includes Kafka attributes from originating stream:
+        # kafka.offset, kafka.partition, kafka.timestamp, kafka.topic
+        attributes = {k: str(v) for k, v in message.attributes.items()}
+        metadata = {
             "message_id": message.message_id,
             "publish_time": str(message.publish_time),
-            # attributes includes the originating 'kafka.timestamp' from ZTF
-            "attributes": {k: str(v) for k, v in message.attributes.items()},
+            **attributes,
         }
+        return {k: v for k, v in metadata.items() if k in self.ztf_fields["metadata"]}
 
     def _lighten_alert(self, alert_dict):
-        keep_fields = {
-            "top-level": ["objectId", "candid", ],
-            "candidate": ["jd", "ra", "dec", "magpsf", "classtar", ],
-        }
-        alert_lite = {k: alert_dict[k] for k in keep_fields["top-level"]}
+        alert_lite = {k: alert_dict[k] for k in self.ztf_fields["top-level"]}
         alert_lite.update(
-            {k: alert_dict["candidate"][k] for k in keep_fields["candidate"]}
+            {k: alert_dict["candidate"][k] for k in self.ztf_fields["candidate"]}
         )
         return alert_lite
 
