@@ -12,12 +12,12 @@ here = pathlib.Path(__file__).parent.resolve()
 
 long_description = (here / 'README.md').read_text(encoding='utf-8')
 
-# with open('requirements.txt') as f:
-#     requirements = f.read().splitlines()
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
 
 setup(
     name='tom_pittgoogle',  # Required
-    version='0.1.0',  # Required
+    version='0.1.9',  # Required
     description='Pitt-Google broker module for the TOM Toolkit',  # Optional
     long_description=long_description,  # Optional
     long_description_content_type='text/markdown',  # Optional (see note above)
@@ -37,5 +37,5 @@ setup(
     keywords='astronomy, alert broker',
     packages=find_packages(),  # Required
     python_requires='>=3.6, <4',
-    # install_requires=requirements,  # Optional
+    install_requires=requirements,  # Optional
 )
