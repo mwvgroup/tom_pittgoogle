@@ -7,8 +7,6 @@ Map a `stream.models.Alert` to DESC's schema for ELAsTiCC
     :header-rows: 1
 
     * - `ELAsTiCC <https://docs.google.com/presentation/d/1FwOdELG-XgdNtySeIjF62bDRVU5EsCToi2Svo_kXA50/edit#slide=id.ge52201f94a_0_6>`__
-      .. - `Target <https://tom-toolkit.readthedocs.io/en/stable/api/tom_targets/models.html>`__
-        (`source <https://github.com/TOMToolkit/tom_base/blob/main/tom_targets/models.py>`__)
       - `Alert <https://github.com/LSSTDESC/tom_desc/blob/u/tjr/alert_model/stream/models.py>`__
       - `ZTF <https://zwickytransientfacility.github.io/ztf-avro-alert/schema.html>`__
 
@@ -33,7 +31,7 @@ Map a `stream.models.Alert` to DESC's schema for ELAsTiCC
       -
 
     * -
-      - raw_message (alert as bytes)
+      - raw_message (alert as bytes? full message packet? don't care?)
       -
 
     * -
