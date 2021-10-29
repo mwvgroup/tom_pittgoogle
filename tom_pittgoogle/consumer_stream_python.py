@@ -84,7 +84,7 @@ class ConsumerStreamPython:
     TODO: Give the user a standard logger.
     """
 
-    def __init__(self, subscription_name, ztf_fields=None):
+    def __init__(self, subscription_name, save_fields=None):
         """Authenticate user; create client; set subscription path; check connection."""
         user_project = settings.GOOGLE_CLOUD_PROJECT
         self.database_list = []  # list of dicts. fake database for demo.
@@ -110,9 +110,11 @@ class ConsumerStreamPython:
         self.topic_path = f"projects/{PITTGOOGLE_PROJECT_ID}/topics/{subscription_name}"
         self.touch_subscription()
 
-        self._set_ztf_fields(ztf_fields)
+        # field names to keep in the unpacked alert_dict
+        self._set_save_fields(save_fields)
 
-        self.queue = queue.Queue()  # queue for communication between threads
+        # queue for communication between threads. Enforces stopping conditions.
+        self.queue = queue.Queue()
 
         # for the TOM `GenericAlert`. this won't be very helpful without instructions.
         self.pull_url = "https://pubsub.googleapis.com/v1/{subscription_path}"
@@ -197,14 +199,14 @@ class ConsumerStreamPython:
             user_filter (Callable): Used by `callback` to filter alerts before
                                     saving. It should accept a single alert as a
                                     dictionary (flat dict with fields determined by
-                                    `ztf_fields` attribute).
+                                    `save_fields`).
                                     It should return the alert dict if it passes the
                                     filter, else None.
 
             user_callback (Callable): Used by `callback` to process alerts.
                                       It should accept a single alert as a
                                       dictionary (flat dict with fields determined by
-                                      `ztf_fields` attribute).
+                                      `save_fields`).
                                       It should return True if the processing was
                                       successful; else False.
 
@@ -213,6 +215,10 @@ class ConsumerStreamPython:
                            There must be at least one stopping condition
                            (`max_results` or `timeout`), else the streaming pull
                            will run forever.
+                           These will also be passed to user_filter and user_callback.
+                           Use send_alert_bytes=True and/or send_metadata=True
+                           (in order) to have those objects passed to the user_filter
+                           and/or user_callback.
         """
         # callback doesn't accept kwargs. set attribute instead.
         self.callback_kwargs = {
@@ -314,12 +320,13 @@ class ConsumerStreamPython:
                     return
 
         if alert_dict is not None:
+            # save so stream_alerts can return it, in case the user wants it (broker)
             self.save_alert(alert_dict)
 
             # communicate with the main thread
             self.queue.put(1)  # 1 alert successfully processed
+            # block until main thread acknowledges so we don't ack msgs that get lost
             if kwargs['max_results'] is not None:
-                # block til main thread acknowledges so we don't ack msgs that get lost
                 self.queue.join()  # single background thread => one-in-one-out
 
         else:
@@ -340,12 +347,12 @@ class ConsumerStreamPython:
         """Save the alert to a database."""
         self.database_list.append(alert)  # fake database for demo
 
-    def _set_ztf_fields(self, fields=None):
+    def _set_save_fields(self, fields=None):
         """Fields to save in the `_unpack` method."""
         if fields is not None:
-            self.ztf_fields = fields
+            self.save_fields = fields
         else:
-            self.ztf_fields = {
+            self.save_fields = {
                 "top-level": ["objectId", "candid", ],
                 "candidate": ["jd", "ra", "dec", "magpsf", "classtar", ],
                 "metadata": ["message_id", "publish_time", "kafka.timestamp"]
@@ -362,12 +369,12 @@ class ConsumerStreamPython:
             "publish_time": str(message.publish_time),
             **attributes,
         }
-        return {k: v for k, v in metadata.items() if k in self.ztf_fields["metadata"]}
+        return {k: v for k, v in metadata.items() if k in self.save_fields["metadata"]}
 
     def _lighten_alert(self, alert_dict):
-        alert_lite = {k: alert_dict[k] for k in self.ztf_fields["top-level"]}
+        alert_lite = {k: alert_dict[k] for k in self.save_fields["top-level"]}
         alert_lite.update(
-            {k: alert_dict["candidate"][k] for k in self.ztf_fields["candidate"]}
+            {k: alert_dict["candidate"][k] for k in self.save_fields["candidate"]}
         )
         return alert_lite
 
