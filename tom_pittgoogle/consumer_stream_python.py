@@ -275,7 +275,7 @@ class ConsumerStreamPython:
 
         # unpack
         try:
-            alert_dict = self._unpack(message)
+            alert_dict, metadata_dict = self._unpack(message)
         except Exception as e:
             self._log_and_print(f"Error unpacking message: {e}", severity="DEBUG")
             message.nack()  # nack so message does not leave subscription
@@ -293,7 +293,14 @@ class ConsumerStreamPython:
         # run user callback
         if kwargs["user_callback"] is not None:
             try:
-                success = kwargs["user_callback"](alert_dict)  # bool
+                # call user_callback with appropriate args
+                args = {}  # requires args are ordered properly here & in user_callback
+                if kwargs.get("send_alert_bytes", False):
+                    args.update(message.data)
+                if kwargs.get("send_metadata", False):
+                    args.update(metadata_dict)
+                success = kwargs["user_callback"](alert_dict, *args, **kwargs)  # bool
+
             except Exception as e:
                 success = False
                 msg = f"Error running user_callback: {e}"
@@ -321,10 +328,13 @@ class ConsumerStreamPython:
         message.ack()
 
     def _unpack(self, message):
-        alert_dict = avro_to_dict(message.data)
-        alert_dict = self._lighten_alert(alert_dict)  # flat dict with self.ztf_fields
-        alert_dict.update(self._extract_metadata(message))
-        return alert_dict
+        alert_dict = avro_to_dict(message.data)  # nested dict with ZTF schema
+        # Let's turn this into something closer to Pitt-Google streams after Issue #101
+        # https://github.com/mwvgroup/Pitt-Google-Broker/issues/101
+        # flatten dict and keep fields in self.save_fields, except metadata
+        alert_dict = self._lighten_alert(alert_dict)
+        metadata_dict = self._extract_metadata(message)
+        return alert_dict, metadata_dict
 
     def save_alert(self, alert):
         """Save the alert to a database."""
