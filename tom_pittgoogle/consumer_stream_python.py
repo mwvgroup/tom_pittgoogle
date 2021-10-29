@@ -298,13 +298,14 @@ class ConsumerStreamPython:
 
         # run user callback
         if kwargs["user_callback"] is not None:
+            # get args for user_callback
+            args = []  # requires args are ordered properly here & in user_callback
+            if kwargs.get("send_alert_bytes", False):
+                args.append(message.data)
+            if kwargs.get("send_metadata", False):
+                args.append(metadata_dict)
             try:
-                # call user_callback with appropriate args
-                args = {}  # requires args are ordered properly here & in user_callback
-                if kwargs.get("send_alert_bytes", False):
-                    args.update(message.data)
-                if kwargs.get("send_metadata", False):
-                    args.update(metadata_dict)
+                # execute user callback
                 success = kwargs["user_callback"](alert_dict, *args, **kwargs)  # bool
 
             except Exception as e:
