@@ -130,7 +130,7 @@ class ConsumerStreamPython:
             )
             assert project == user_project  # TODO: handle this better
 
-        except auth.exceptions.DefaultCredentialsError:
+        except (TypeError, auth.exceptions.DefaultCredentialsError):
             self.authenticate_with_oauth()
             self.credentials = credentials_from_session(self.oauth2)
 
