@@ -11,4 +11,5 @@ Index for Troy Raen's Docs
    :maxdepth: 10
    :caption: Troy Raen's Docs
 
-   elasticc-avro
+   troyraen/TOM
+   troyraen/elasticc-avro/README
