@@ -7,9 +7,8 @@ Index for Troy Raen's Docs
 ===========================
 
 .. toctree::
-   :hidden:
    :maxdepth: 10
    :caption: Troy Raen's Docs
 
    troyraen/TOM
-   troyraen/elasticc-avro/README
+   troyraen/elasticc-avro/*
