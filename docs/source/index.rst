@@ -12,3 +12,23 @@ Index for Troy Raen's Docs
 
    troyraen/TOM
    troyraen/elasticc-avro/*
+
+
+Index for (other) Docs
+========================
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Overview
+
+   workflow
+   integrate_tom
+   auth
+
+.. toctree::
+   :maxdepth: 1
+   :caption: API
+
+   stream_rest
+   stream_python
+   database_python
