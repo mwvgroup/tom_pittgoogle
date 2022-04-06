@@ -4,29 +4,23 @@
 
 Pub/Sub Python Client docs: https://googleapis.dev/python/pubsub/latest/index.html
 
-Used by `BrokerStreamPython`, but can be called independently.
-
-Use-case: Save alerts to a database
-
-    The demo for this implementation assumes that the real use-case is to save alerts
-    to a database rather than view them through a TOM site.
-    Therefore, the `Consumer` currently saves the alerts in real time,
-    and then simply returns a list of alerts after all messages are processed.
-    That list is then coerced into an iterator by the `Broker`.
-    If the user really cares about the `Broker`'s iterator, `stream_alerts` can
-    be tweaked to yield the alerts in real time.
-
 Basic workflow:
 
 .. code:: python
 
     consumer = ConsumerStreamPython(subscription_name)
 
-    alert_dicts_list = consumer.stream_alerts(
-        user_callback=user_callback,
-        **user_kwargs,
-    )
-    # alerts are processed and saved in real time. the list is returned for convenience.
+    def user_callback(alert_dict):
+        # Process the alert as desired. If processing is successful,
+        # tell the consumer to send an acknowldgement to Pub/Sub.
+        success = True
+        if success:
+            ack = True
+        else:
+            ack = False
+        return result = {"ack": ack}
+
+    alert_dicts_list = consumer.stream_alerts(user_callback=user_callback)
 
 See especially:
 
@@ -57,7 +51,6 @@ from .utils.templatetags.utility_tags import avro_to_dict
 
 
 LOGGER = logging.getLogger(__name__)
-LOGGER.setLevel(logging.INFO)
 
 PITTGOOGLE_PROJECT_ID = "ardent-cycling-243415"
 

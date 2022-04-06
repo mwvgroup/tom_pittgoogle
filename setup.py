@@ -17,7 +17,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='tom_pittgoogle',  # Required
-    version='0.1.10',  # Required
+    version='0.1.11',  # Required
     description='Pitt-Google broker module for the TOM Toolkit',  # Optional
     long_description=long_description,  # Optional
     long_description_content_type='text/markdown',  # Optional (see note above)
